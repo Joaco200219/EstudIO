@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - release # O cambia a "main" si prefieres que compile en cada push
+      - beta
 
 jobs:
   publish-tauri:

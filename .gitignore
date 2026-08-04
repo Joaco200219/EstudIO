@@ -7,8 +7,6 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-recordatorio_release.txt
-
 node_modules
 dist
 dist-ssr
@@ -27,3 +25,8 @@ dist-ssr
 
 # La bdd kp, eso no debe ir
 mi_DB.db3
+.opencode
+.agents/skills/agent-browser
+skills-lock.json
+recordatorio_release.txt
+plan/

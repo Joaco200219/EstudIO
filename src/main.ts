@@ -1,5 +1,5 @@
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
-import { confirm } from "@tauri-apps/plugin-dialog";
+import { confirm, open } from "@tauri-apps/plugin-dialog";
 import { readImage } from "@tauri-apps/plugin-clipboard-manager";
 import { seleccionarRuta } from "./file";
 import { Editor, Extension } from "@tiptap/core";
@@ -67,6 +67,9 @@ let currentEditPath: string = "";
 let currentEditCodigo: number | null = null;
 let materiaToDelete: string | null = null;
 let selectedHighlightColor = "#fef08a";
+
+// ZIP import state (selected materia)
+let currentMateriaForModal: Materia | null = null;
 
 const CustomPasteExtension = Extension.create({
   name: "customPaste",
@@ -164,10 +167,152 @@ document.addEventListener("DOMContentLoaded", () => {
   setupCalendar();
   setupModal();
   setupEditor();
+  setupZipActions();
   cargarUltimosModificados();
   cargarMaterias();
   cargarRecordatoriosHoy();
 });
+
+function getTodayBackendDate(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}/${m}/${d}`;
+}
+
+function getParentDirFromPath(filePath: string): string {
+  const lastSlash = Math.max(filePath.lastIndexOf("/"), filePath.lastIndexOf("\\"));
+  return lastSlash !== -1 ? filePath.substring(0, lastSlash) : "";
+}
+
+function joinPath(dir: string, fileName: string): string {
+  if (!dir) return fileName;
+  const sep = dir.includes("\\") && !dir.includes("/") ? "\\" : "/";
+  return dir.endsWith(sep) ? `${dir}${fileName}` : `${dir}${sep}${fileName}`;
+}
+
+function isUserCancelledDialog(err: any): boolean {
+  const msg = String(err ?? "").toLowerCase();
+  return msg.includes("cancel") || msg.includes("canceled") || msg.includes("cancelled");
+}
+
+function setButtonLoading(btn: HTMLButtonElement, loading: boolean, loadingText?: string) {
+  if (!btn) return;
+  if (loading) {
+    btn.disabled = true;
+    btn.dataset.originalText = btn.textContent ?? "";
+    if (loadingText) btn.textContent = loadingText;
+  } else {
+    btn.disabled = false;
+    if (btn.dataset.originalText) btn.textContent = btn.dataset.originalText;
+    delete btn.dataset.originalText;
+  }
+}
+
+function setupZipActions() {
+  // Import ZIP (global on Materias view)
+  const btnImportGlobal = document.getElementById("btn-import-zip") as HTMLButtonElement | null;
+  btnImportGlobal?.addEventListener("click", async () => {
+    await importarNotaZipFlow(null, btnImportGlobal);
+  });
+
+  // Import ZIP (inside modal for a specific materia)
+  const btnImportModal = document.getElementById("btn-modal-importar-zip") as HTMLButtonElement | null;
+  btnImportModal?.addEventListener("click", async () => {
+    await importarNotaZipFlow(currentMateriaForModal, btnImportModal);
+  });
+}
+
+async function importarNotaZipFlow(
+  materiaPreferida: Materia | null,
+  triggerBtn?: HTMLButtonElement | null,
+) {
+  const btn = triggerBtn ?? null;
+  try {
+    if (btn) setButtonLoading(btn, true, "Importando…");
+
+    // 1) Materia
+    let materiaCodigo: string | undefined;
+    let materiaNombre: string | undefined;
+    if (materiaPreferida) {
+      materiaCodigo = materiaPreferida.codigo.toString();
+      materiaNombre = materiaPreferida.nombre;
+    } else {
+      // Pick from existing materias
+      if (!materiasCache || materiasCache.length === 0) {
+        try {
+          materiasCache = await invoke<Materia[]>("mostrar_materias");
+        } catch (e) {
+          // ignore, will show error below
+        }
+      }
+      if (!materiasCache || materiasCache.length === 0) {
+        showToast("No hay materias disponibles para importar", "error");
+        return;
+      }
+
+      const listado = materiasCache
+        .map((m, i) => `${i + 1}) ${m.nombre} (#${m.codigo})`)
+        .join("\n");
+      const idxStr = window.prompt(
+        `Seleccioná la materia destino (ingresá el número):\n\n${listado}`,
+        "1",
+      );
+      if (!idxStr) return; // cancelled
+      const idx = Number(idxStr);
+      if (!Number.isFinite(idx) || idx < 1 || idx > materiasCache.length) {
+        showToast("Selección de materia inválida", "error");
+        return;
+      }
+      const mat = materiasCache[idx - 1];
+      materiaCodigo = mat.codigo.toString();
+      materiaNombre = mat.nombre;
+    }
+
+    // 2) ZIP file
+    const zipPath = (await open({
+      multiple: false,
+      directory: false,
+      filters: [{ name: "ZIP", extensions: ["zip"] }],
+    })) as string | null;
+    if (!zipPath) return; // cancelled
+
+    // 3) Destination folder
+    const destino = (await open({
+      multiple: false,
+      directory: true,
+    })) as string | null;
+    if (!destino) return; // cancelled
+
+    const fecha = getTodayBackendDate();
+    // Nota: el proyecto usa camelCase en el frontend y el backend (Rust) recibe snake_case.
+    // Tauri hace el mapeo automáticamente (ej: rutaApunte -> ruta_apunte).
+    const apunte = await invoke<Apunte>("extraer_zip", {
+      materiaCodigo: materiaCodigo,
+      rutaZip: zipPath,
+      rutaDestino: destino,
+      fechaCreacion: fecha,
+      ultModificacion: fecha,
+    });
+
+    // Update lists
+    showToast(`Nota importada correctamente${materiaNombre ? ` en ${materiaNombre}` : ""}: ${apunte.tema}`,
+      "success",
+    );
+    cargarUltimosModificados();
+    if (materiaPreferida) {
+      // refresh modal list
+      await abrirModalVerApuntes(materiaPreferida);
+    }
+  } catch (err: any) {
+    if (isUserCancelledDialog(err)) return;
+    console.error("Error importando nota ZIP:", err);
+    showToast(`Importación fallida: ${err?.toString?.() ?? String(err)}`, "error");
+  } finally {
+    if (btn) setButtonLoading(btn, false);
+  }
+}
 
 function setupNavigation() {
   const navBtns = document.querySelectorAll(".nav-btn");
@@ -398,6 +543,7 @@ function setupEditor() {
   const btnGuardar = document.getElementById("btn-editor-guardar");
   const btnGuardarCerrar = document.getElementById("btn-editor-guardar-cerrar");
   const btnToggleSidebar = document.getElementById("btn-toggle-sidebar");
+  const btnExportarZip = document.getElementById("btn-editor-exportar-zip") as HTMLButtonElement | null;
 
   btnCerrar?.addEventListener("click", () => {
     cerrarEditor();
@@ -410,6 +556,34 @@ function setupEditor() {
   btnGuardarCerrar?.addEventListener("click", async () => {
     const exito = await guardarApunteActual();
     if (exito) cerrarEditor();
+  });
+
+  // ── Exportar como ZIP ──────────────────────────────────────────────────────
+  btnExportarZip?.addEventListener("click", async () => {
+    if (!currentEditPath) {
+      showToast("No hay ningún apunte abierto para exportar", "error");
+      return;
+    }
+
+    // Guardar antes de exportar para capturar cambios y referencias
+    await guardarApunteActual();
+
+    try {
+      setButtonLoading(btnExportarZip, true, "Exportando…");
+      // Usar camelCase para que coincida con el resto del frontend (y con el mapeo de Tauri)
+      const zipFileName = await invoke<string>("crear_zip", {
+        pathApunte: currentEditPath,
+      });
+
+      const parentDir = getParentDirFromPath(currentEditPath);
+      const zipFullPath = joinPath(parentDir, zipFileName);
+      showToast(`Nota exportada correctamente: ${zipFullPath}`, "success");
+    } catch (err: any) {
+      console.error("Error al exportar ZIP:", err);
+      showToast(`Exportación fallida: ${err?.toString?.() ?? String(err)}`, "error");
+    } finally {
+      setButtonLoading(btnExportarZip, false);
+    }
   });
 
   // ── Exportar como PDF ──────────────────────────────────────────────────────
@@ -1227,6 +1401,7 @@ async function cargarMaterias() {
 }
 
 async function abrirModalVerApuntes(mat: Materia) {
+  currentMateriaForModal = mat;
   const modal = document.getElementById("modal-ver-apuntes");
   const modalMateriaNombre = document.getElementById(
     "modal-ver-apuntes-materia-nombre",
