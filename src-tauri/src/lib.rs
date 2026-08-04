@@ -6,12 +6,15 @@ use image::ImageFormat;
 use rusqlite::{Connection, Result};
 use std::fs;
 use std::fs::OpenOptions;
+use std::io::{Read, Seek};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::{Manager, State};
 use uuid::Uuid;
+use zip::write::SimpleFileOptions;
+use zip::ZipArchive;
 //Fechas en formato YYYY/MM/DD aca, pero en frontend se usa DD/MM/YYYY
-//
+
 struct DbState {
     db: Mutex<Connection>,
 }
@@ -105,7 +108,7 @@ fn inicio(app: &tauri::App) -> Connection {
             (),
         )
         .expect("Error Creando La Tabla EVENTO");
-    conexion //Indice Btree rapido como toreto
+    conexion //Indice Btree
         .execute(
             "CREATE INDEX IF NOT EXISTS idx_evento_fecha ON EVENTO(fecha_recordar)",
             (),
@@ -473,6 +476,54 @@ fn borrar_apunte(
     state: State<'_, DbState>,
     ruta: String,
 ) -> Result<(), String> {
+    // Borramos primero las imagenes
+    let path_apunte = Path::new(&ruta);
+    let archivo_string = fs::read_to_string(&path_apunte).map_err(|e| e.to_string())?; // Aca carga todo en ram, problema archivos grandes
+    let carpeta_imagenes = PathBuf::from(&ruta).parent().map(|p| p.join(".recursos"));
+    //Revisamos el archivo y borramos las imagenes propias del apunte
+    for linea in archivo_string.lines() {
+        if linea.contains(".recursos") {
+            // Tiene imagen
+            if let Some(fragment) = linea.split("%2F").last() {
+                let extensiones = [
+                    ".png", ".jpg", ".jpeg", ".webp", ".PNG", ".JPG", ".WEBP", ".JPEG",
+                ];
+                // varia tamaño, ref: <img src="asset://localhost/%2Fhome%2Fusuario%2Fdocumentos%2Fanotaciones%2Ffacultad%2F.recursos%2F019fcdfe-54e1-7651-af58-3536ed7bf26b.png" alt="" width="434" height="256">
+                for ext in extensiones {
+                    if let Some(pos) = fragment.find(ext) {
+                        let imagen = fragment[..pos + ext.len()].to_string();
+                        if let Some(ref dir) = carpeta_imagenes {
+                            let ruta_imagen = dir.join(imagen);
+                            if let Err(e) = fs::remove_file(&ruta_imagen) {
+                                eprintln!("Error al eliminar {:?}: {}", ruta_imagen, e);
+                            } else {
+                                println!("Imagen eliminada con éxito: {:?}", ruta_imagen);
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    if let Some(ref dir) = carpeta_imagenes {
+        if dir.exists() {
+            let esta_vacia = match fs::read_dir(dir) {
+                Ok(mut entries) => entries.next().is_none(), // `true` si no hay ningún archivo/subcarpeta
+                Err(_) => false, // Ante la duda o error de permisos, preferimos no tocarla
+            };
+            if esta_vacia {
+                // fs::remove_dir solo borra directorios vacíos
+                if let Err(e) = fs::remove_dir(dir) {
+                    eprintln!("No se pudo eliminar la carpeta .recursos: {}", e);
+                } else {
+                    eprintln!("Carpeta .recursos eliminada correctamente por estar vacía");
+                }
+            } else {
+                eprintln!("La carpeta .recursos todavía contiene imágenes de otros apuntes.");
+            }
+        }
+    }
     let codigo_val = codigo_apunte.parse::<u32>().map_err(|e| e.to_string())?;
     let db = state.db.lock().unwrap();
     eliminar_apunte_interno(&db, codigo_val, &ruta)
@@ -610,6 +661,166 @@ fn guardar_pdf(path: String, content_base64: String) -> Result<(), String> {
     fs::write(path, bytes).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn crear_zip(path_apunte: String) -> Result<String, String> {
+    // Recibe el path del apunte (Incluye nombre apunte), arma el zip
+    // Primero busca lista de imagenes a enviar
+    let path_destino = Path::new(&path_apunte);
+    let mut imagenes: Vec<String> = Vec::new();
+    let archivo_string = fs::read_to_string(&path_destino).map_err(|e| e.to_string())?; // Aca carga todo en ram, problema archivos grandes
+    for linea in archivo_string.lines() {
+        if linea.contains(".recursos") {
+            // Tiene imagen
+            if let Some(fragment) = linea.split("%2F").last() {
+                let extensiones = [
+                    ".png", ".jpg", ".jpeg", ".webp", ".PNG", ".JPG", ".WEBP", ".JPEG",
+                ];
+                for ext in extensiones {
+                    if let Some(pos) = fragment.find(ext) {
+                        let imagen = fragment[..pos + ext.len()].to_string();
+                        imagenes.push(imagen);
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    let directorio = Path::new(&path_apunte)
+        .parent()
+        .ok_or_else(|| "No se pudo extraer el directorio para zip en backend".to_string())?;
+    let mut carpeta_recursos = directorio.to_path_buf();
+    carpeta_recursos.push(".recursos"); // Carpeta con imagenes
+
+    // Ahora si el zip
+    let mut nombre_apunte = Path::new(&path_apunte)
+        .file_stem() // Sin extension del apunte sino era file_name() que devuelve el nombre con extension
+        .ok_or_else(|| "No se pudo extraer el nombre del apunte".to_string())?
+        .to_string_lossy()
+        .into_owned();
+    let mut nombre_zip = nombre_apunte.clone();
+    nombre_zip.push_str("_export.zip");
+
+    let mut ruta_zip = directorio.to_path_buf();
+    ruta_zip.push(&nombre_zip); //El zip se guarda y crea junto a los apuntes
+    let file = std::fs::File::create(&ruta_zip).map_err(|e| e.to_string())?;
+    let mut zip = zip::ZipWriter::new(file);
+
+    let options = SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated)
+        // files over u32::MAX require this flag set.
+        .large_file(true)
+        .unix_permissions(0o755);
+
+    //Mover Imagenes
+    for imagen in imagenes {
+        let ruta_origen = carpeta_recursos.join(&imagen);
+        if ruta_origen.exists() {
+            let ruta_in_zip = format!(".recursos/{}", &imagen);
+            // Crea archivo dentro de zip
+            zip.start_file(ruta_in_zip, options.clone())
+                .map_err(|e| e.to_string())?;
+            // Copia archivo
+            let mut archivo_imagen = fs::File::open(&ruta_origen).map_err(|e| e.to_string())?;
+            std::io::copy(&mut archivo_imagen, &mut zip).map_err(|e| e.to_string())?;
+        } else {
+            eprintln!(
+                "Problema copiando imagenes en zip, no se encontró {}",
+                &ruta_origen.to_string_lossy()
+            );
+        }
+    }
+
+    // Mover el apunte .md
+    nombre_apunte.push_str(".md"); // Coloco extension
+    zip.start_file(nombre_apunte, options.clone())
+        .map_err(|e| e.to_string())?;
+    let mut archivo_apunte = fs::File::open(&path_apunte).map_err(|e| e.to_string())?;
+    std::io::copy(&mut archivo_apunte, &mut zip).map_err(|e| e.to_string())?;
+    zip.finish().map_err(|e| e.to_string())?;
+
+    Ok(nombre_zip)
+}
+
+fn debe_abrir_zip<R: Read + Seek>(archive: &mut ZipArchive<R>, nombre_esperado: &str) -> bool {
+    let mut estructura = true;
+    let mut formatos_correctos = true;
+    let mut tiene_md_esperado = false;
+    let archivo_md_esperado = format!("{}.md", nombre_esperado);
+
+    for i in 0..archive.len() {
+        let file = match archive.by_index(i) {
+            Ok(f) => f,
+            Err(_) => return false,
+        };
+        let name = file.name();
+        // raiz md + .recursos
+        if !name.starts_with(".recursos/") && name.contains('/') {
+            estructura = false; // No cumple con la estructura
+        }
+
+        // Vemos que sean imagenes en la carpeta recursos
+        if name.starts_with(".recursos/") {
+            let var = name.to_lowercase();
+            if !var.ends_with(".jpg")
+                && !var.ends_with(".png")
+                && !var.ends_with(".webp")
+                && !var.ends_with(".jpeg")
+            {
+                formatos_correctos = false;
+            }
+        }
+
+        // Nombre md
+        if name == archivo_md_esperado {
+            tiene_md_esperado = true;
+        } else if name.ends_with(".md") && !name.contains('/') {
+            tiene_md_esperado = false; // Redundante
+        }
+    }
+    tiene_md_esperado && formatos_correctos && estructura
+}
+
+#[tauri::command]
+fn extraer_zip(
+    materia_codigo: String,
+    ruta_zip: String,     // Incluye el nombre de archivo
+    ruta_destino: String, //Debe ser un directorio
+    fecha_creacion: String,
+    ult_modificacion: String,
+    state: tauri::State<DbState>,
+) -> Result<Apunte, String> {
+    // Descomprimir
+    let file = fs::File::open(Path::new(&ruta_zip)).map_err(|e| e.to_string())?;
+    let mut archive = ZipArchive::new(file).map_err(|e| e.to_string())?;
+
+    let nombre_zip = Path::new(&ruta_zip)
+        .file_stem()
+        .ok_or_else(|| "No se pudo extraer el nombre del apunte".to_string())?
+        .to_string_lossy()
+        .into_owned();
+    let nombre_apunte = match nombre_zip.strip_suffix("_export") {
+        Some(s) => s.to_string(),
+        None => nombre_zip,
+    };
+    //Verificar que tenga estructura de apunte y carpeta de recursos
+    if debe_abrir_zip(&mut archive, &nombre_apunte) {
+        archive
+            .extract(Path::new(&ruta_destino))
+            .map_err(|e| e.to_string())?; //Teoricamente pisa solo documentos identicos
+    } else {
+        return Err("Problema habriendo el zip INSEGURO".to_string());
+    }
+    // Registrar apunte en BDD
+    crear_apunte(
+        nombre_apunte,
+        materia_codigo,
+        fecha_creacion,
+        ult_modificacion,
+        ruta_destino,
+        state,
+    )
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -638,6 +849,8 @@ pub fn run() {
             incorporar_imagenes,
             paste_imagen,
             guardar_pdf,
+            crear_zip,
+            extraer_zip,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

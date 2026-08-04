@@ -1,6 +1,6 @@
 [package]
 name = "EstudIO"
-version = "1.0.0"
+version = "1.1.1"
 description = "Gestiona materias, los apuntes y recordatorios"
 authors = ["you"]
 edition = "2021"
@@ -30,3 +30,5 @@ uuid = { version = "1.18", features = ["v7"] }
 base64 = "0.22"
 image = "0.25"
 tauri-plugin-clipboard-manager = "2.3.2"
+zip = "2.1.1"
+zip-extensions = "0.14.1"
