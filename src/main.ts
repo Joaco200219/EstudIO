@@ -279,6 +279,7 @@ async function importarNotaZipFlow(
 
     // 2) ZIP file
     const zipPath = (await open({
+      title: "Elegí el archivo zip",
       multiple: false,
       directory: false,
       filters: [{ name: "ZIP", extensions: ["zip"] }],
@@ -287,6 +288,7 @@ async function importarNotaZipFlow(
 
     // 3) Destination folder
     const destino = (await open({
+      title: "Elegí donde guardar este apunte",
       multiple: false,
       directory: true,
     })) as string | null;
