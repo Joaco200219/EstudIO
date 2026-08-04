@@ -11,12 +11,19 @@ import html2pdf from "html2pdf.js";
 
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
+import { Table } from "@tiptap/extension-table";
+import { TableRow } from "@tiptap/extension-table-row";
+import { TableCell } from "@tiptap/extension-table-cell";
+import { TableHeader } from "@tiptap/extension-table-header";
 import { Markdown } from "@tiptap/markdown";
 import Highlight from "@tiptap/extension-highlight";
 import { marked } from "marked";
 import TurndownService from "turndown";
+// @ts-ignore
+import { gfm } from "turndown-plugin-gfm";
 
 const turndownService = new TurndownService({ headingStyle: "atx" });
+turndownService.use(gfm);
 turndownService.keep(["mark"]);
 
 turndownService.addRule("preserve-image-dims", {
@@ -558,6 +565,35 @@ function setupEditor() {
     if (exito) cerrarEditor();
   });
 
+  const btnExportarMenu = document.getElementById("btn-editor-exportar-menu");
+  const dropdownContent = document.getElementById("exportar-dropdown-content");
+
+  btnExportarMenu?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    dropdownContent?.classList.toggle("show");
+  });
+
+  const btnTableMenu = document.getElementById("btn-table-menu");
+  const tableDropdownContent = document.getElementById("table-dropdown-content");
+
+  btnTableMenu?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    tableDropdownContent?.classList.toggle("show");
+  });
+
+  window.addEventListener("click", (e) => {
+    if (!btnExportarMenu?.contains(e.target as Node)) {
+      if (dropdownContent?.classList.contains("show")) {
+        dropdownContent.classList.remove("show");
+      }
+    }
+    if (!btnTableMenu?.contains(e.target as Node)) {
+      if (tableDropdownContent?.classList.contains("show")) {
+        tableDropdownContent.classList.remove("show");
+      }
+    }
+  });
+
   // ── Exportar como ZIP ──────────────────────────────────────────────────────
   btnExportarZip?.addEventListener("click", async () => {
     if (!currentEditPath) {
@@ -929,6 +965,30 @@ function setupEditor() {
             break;
           case "blockquote":
             chain.toggleBlockquote().run();
+            break;
+          case "insertTable":
+            chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+            break;
+          case "addColumnBefore":
+            chain.addColumnBefore().run();
+            break;
+          case "addColumnAfter":
+            chain.addColumnAfter().run();
+            break;
+          case "deleteColumn":
+            chain.deleteColumn().run();
+            break;
+          case "addRowBefore":
+            chain.addRowBefore().run();
+            break;
+          case "addRowAfter":
+            chain.addRowAfter().run();
+            break;
+          case "deleteRow":
+            chain.deleteRow().run();
+            break;
+          case "deleteTable":
+            chain.deleteTable().run();
             break;
           case "image":
             (async () => {
@@ -2079,6 +2139,10 @@ async function abrirEditor(apunte: Apunte) {
             extensions: [
               CustomPasteExtension,
               StarterKit,
+              Table.configure({ resizable: true }),
+              TableRow,
+              TableHeader,
+              TableCell,
               Highlight.configure({ multicolor: true }),
               Image.configure({
                 resize: {
