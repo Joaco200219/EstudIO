@@ -38,6 +38,40 @@ turndownService.addRule("preserve-image-dims", {
   },
 });
 
+const TabExtension = Extension.create({
+  name: 'tabExtension',
+  addKeyboardShortcuts() {
+    return {
+      Tab: () => {
+        // Inserta un tabulador real
+        return this.editor.commands.insertContent('\t');
+      },
+      'Shift-Tab': () => {
+        return this.editor.commands.command(({ tr, state, dispatch }) => {
+          const { $from, empty } = state.selection;
+
+          if (empty) {
+            // Obtener el texto justo antes del cursor (1 caracter)
+            const textBefore = $from.parent.textBetween(
+              Math.max(0, $from.parentOffset - 1),
+              $from.parentOffset
+            );
+
+            // Si es un tabulador, lo borramos
+            if (textBefore === '\t') {
+              if (dispatch) {
+                tr.delete($from.pos - 1, $from.pos);
+              }
+              return true;
+            }
+          }
+          return false;
+        });
+      },
+    };
+  },
+});
+
 // Define Interfaces
 interface Materia {
   codigo: number;
@@ -2141,6 +2175,7 @@ async function abrirEditor(apunte: Apunte) {
             extensions: [
               CustomPasteExtension,
               StarterKit,
+              TabExtension,
               Table.configure({ resizable: true }),
               TableRow,
               TableHeader,
