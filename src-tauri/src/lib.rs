@@ -780,6 +780,86 @@ fn debe_abrir_zip<R: Read + Seek>(archive: &mut ZipArchive<R>, nombre_esperado: 
     tiene_md_esperado && formatos_correctos && estructura
 }
 
+// Normaliza las referencias a imagenes de una linea para que apunten a la carpeta
+// .recursos de forma relativa y con "/" como separador (valido en Windows, macOS y Linux).
+// Ej: asset://localhost/%2Fhome%2Fuser%2FApuntes%2F.recursos%2Fx.png -> .recursos/x.png
+fn normalizar_referencias(linea: &str) -> String {
+    // Marcadores que anteceden al nombre del archivo dentro de una referencia a imagen
+    const MARCADORES: [&str; 2] = [
+        "%2F.recursos%2F", // URL codificada: asset://localhost/%2F...%2F.recursos%2F<archivo>
+        "/.recursos/",     // Ruta absoluta sin codificar: /.../.recursos/<archivo>
+    ];
+    // Delimitadores que cierran el nombre del archivo en markdown o HTML
+    const FIN_NOMBRE: [char; 10] = ['(', ')', '"', '\'', ' ', '\t', '\n', '\r', '<', '>'];
+
+    let mut resultado = String::with_capacity(linea.len());
+    let mut resto = linea;
+
+    while !resto.is_empty() {
+        // Aparicion mas temprana de cualquiera de los marcadores
+        let siguiente = MARCADORES
+            .iter()
+            .filter_map(|m| resto.find(m).map(|pos| (pos, *m)))
+            .min_by_key(|(pos, _)| *pos);
+        let (pos, marcador) = match siguiente {
+            Some(encontrado) => encontrado,
+            None => break,
+        };
+
+        // Inicio del valor del atributo/URL: ultimo delimitador de apertura antes del marcador
+        let inicio_valor = resto[..pos]
+            .rfind(['(', '"', '\'', ' ', '\n', '\r'])
+            .map_or(0, |i| i + 1);
+
+        // Nombre + extension que le sigue al marcador
+        let despues = &resto[pos + marcador.len()..];
+        let fin = despues.find(FIN_NOMBRE).unwrap_or(despues.len());
+        let nombre_archivo = &despues[..fin];
+
+        // Caso anomalo (sin nombre o con subrutas/codificacion extra): conservar el original
+        if nombre_archivo.is_empty() || nombre_archivo.contains('/') || nombre_archivo.contains('%')
+        {
+            resultado.push_str(&resto[..pos + marcador.len()]);
+            resto = despues;
+            continue;
+        }
+
+        // Reconstruimos el valor con la ruta relativa y separador "/"
+        resultado.push_str(&resto[..inicio_valor]);
+        resultado.push_str(".recursos/");
+        resultado.push_str(nombre_archivo);
+        resto = &despues[fin..];
+    }
+    resultado.push_str(resto);
+    resultado
+}
+
+// Normaliza todas las rutas de imagenes de un apunte a rutas relativas a .recursos,
+// reemplazando URLs absolutas (asset://localhost/...) invalidas en otra maquina.
+fn normalizar_rutas_imagenes(contenido: &str) -> String {
+    let termina_nueva_linea = contenido.ends_with('\n');
+    let lineas: Vec<String> = contenido
+        .lines()
+        .map(|linea| {
+            // Solo procesamos lineas con posibles referencias a imagenes
+            if linea.contains("<img")
+                || linea.contains("](")
+                || linea.contains("asset:")
+                || linea.contains("http")
+            {
+                normalizar_referencias(linea)
+            } else {
+                linea.to_string()
+            }
+        })
+        .collect();
+    let mut resultado = lineas.join("\n");
+    if termina_nueva_linea {
+        resultado.push('\n');
+    }
+    resultado
+}
+
 #[tauri::command]
 fn extraer_zip(
     materia_codigo: String,
@@ -810,6 +890,17 @@ fn extraer_zip(
     } else {
         return Err("Problema habriendo el zip INSEGURO".to_string());
     }
+
+    // El apunte puede traer rutas absolutas a imagenes (asset://localhost/...)
+    // que solo son validas en la maquina de origen. Se normalizan a rutas
+    // relativas (.recursos/<archivo>) antes de registrar el apunte en la BDD.
+    let note_path = Path::new(&ruta_destino).join(format!("{}.md", nombre_apunte));
+    let contenido = fs::read_to_string(&note_path).map_err(|e| e.to_string())?;
+    let contenido_normalizado = normalizar_rutas_imagenes(&contenido);
+    if contenido_normalizado != contenido {
+        fs::write(&note_path, contenido_normalizado).map_err(|e| e.to_string())?;
+    }
+
     // Registrar apunte en BDD
     crear_apunte(
         nombre_apunte,
@@ -854,4 +945,57 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normaliza_asset_url_en_markdown() {
+        let entrada = "![foto](asset://localhost/%2Fhome%2Fuser%2FApuntes%2F.recursos%2Fabc.png)";
+        assert_eq!(
+            normalizar_rutas_imagenes(entrada),
+            "![foto](.recursos/abc.png)"
+        );
+    }
+
+    #[test]
+    fn normaliza_img_html_con_dimensiones() {
+        let entrada = r#"<img src="http://asset.localhost/C%3A%5CUsers%2Fjuan%2FM%C3%BAsica%2FApuntes%2F.recursos%2Fab12.webp" width="300">"#;
+        assert_eq!(
+            normalizar_rutas_imagenes(entrada),
+            r#"<img src=".recursos/ab12.webp" width="300">"#
+        );
+    }
+
+    #[test]
+    fn conserva_rutas_relativas() {
+        let entrada = "![foto](.recursos/abc.png)\n\nTexto normal sin imagenes.\n";
+        assert_eq!(normalizar_rutas_imagenes(entrada), entrada);
+    }
+
+    #[test]
+    fn normaliza_ruta_absoluta_plana() {
+        let entrada = "![foto](/home/user/Apuntes/.recursos/xyz.jpg)";
+        assert_eq!(
+            normalizar_rutas_imagenes(entrada),
+            "![foto](.recursos/xyz.jpg)"
+        );
+    }
+
+    #[test]
+    fn normaliza_varias_imagenes_en_una_linea() {
+        let entrada = "![a](asset://localhost/%2Fx%2F.recursos%2Fa.png) y ![b](asset://localhost/%2Fy%2F.recursos%2Fb.jpeg)";
+        assert_eq!(
+            normalizar_rutas_imagenes(entrada),
+            "![a](.recursos/a.png) y ![b](.recursos/b.jpeg)"
+        );
+    }
+
+    #[test]
+    fn texto_sin_referencias_a_imagenes_no_se_altera() {
+        let entrada = "# Titulo\n\nAca mencionamos /home/user/.recursos/ en texto plano.\n";
+        assert_eq!(normalizar_rutas_imagenes(entrada), entrada);
+    }
 }
