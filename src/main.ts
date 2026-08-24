@@ -601,6 +601,17 @@ function setupEditor() {
     if (exito) cerrarEditor();
   });
 
+  // ── Atajo de teclado: Ctrl+S / Cmd+S para guardar ──────────────────────────
+  window.addEventListener("keydown", async (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+      // Solo activo mientras se edita un apunte
+      if (!currentEditPath || !editorInstancia || currentEditCodigo === null)
+        return;
+      e.preventDefault();
+      await guardarApunteActual();
+    }
+  });
+
   const btnExportarMenu = document.getElementById("btn-editor-exportar-menu");
   const dropdownContent = document.getElementById("exportar-dropdown-content");
 
