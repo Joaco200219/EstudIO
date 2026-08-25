@@ -21,6 +21,10 @@ import { marked } from "marked";
 import TurndownService from "turndown";
 // @ts-ignore
 import { gfm } from "turndown-plugin-gfm";
+import { initUpdater } from "./updater";
+
+// Inicializar el listener de actualizaciones (responde al evento emitido por Rust)
+initUpdater().catch((e) => console.error("[updater] No se pudo inicializar:", e));
 
 const turndownService = new TurndownService({ headingStyle: "atx" });
 turndownService.use(gfm);
@@ -35,6 +39,40 @@ turndownService.addRule("preserve-image-dims", {
   },
   replacement: (_content: string, node: any) => {
     return node.outerHTML;
+  },
+});
+
+const TabExtension = Extension.create({
+  name: 'tabExtension',
+  addKeyboardShortcuts() {
+    return {
+      Tab: () => {
+        // Inserta un tabulador real
+        return this.editor.commands.insertContent('\t');
+      },
+      'Shift-Tab': () => {
+        return this.editor.commands.command(({ tr, state, dispatch }) => {
+          const { $from, empty } = state.selection;
+
+          if (empty) {
+            // Obtener el texto justo antes del cursor (1 caracter)
+            const textBefore = $from.parent.textBetween(
+              Math.max(0, $from.parentOffset - 1),
+              $from.parentOffset
+            );
+
+            // Si es un tabulador, lo borramos
+            if (textBefore === '\t') {
+              if (dispatch) {
+                tr.delete($from.pos - 1, $from.pos);
+              }
+              return true;
+            }
+          }
+          return false;
+        });
+      },
+    };
   },
 });
 
@@ -565,6 +603,17 @@ function setupEditor() {
   btnGuardarCerrar?.addEventListener("click", async () => {
     const exito = await guardarApunteActual();
     if (exito) cerrarEditor();
+  });
+
+  // ── Atajo de teclado: Ctrl+S / Cmd+S para guardar ──────────────────────────
+  window.addEventListener("keydown", async (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+      // Solo activo mientras se edita un apunte
+      if (!currentEditPath || !editorInstancia || currentEditCodigo === null)
+        return;
+      e.preventDefault();
+      await guardarApunteActual();
+    }
   });
 
   const btnExportarMenu = document.getElementById("btn-editor-exportar-menu");
@@ -2141,6 +2190,7 @@ async function abrirEditor(apunte: Apunte) {
             extensions: [
               CustomPasteExtension,
               StarterKit,
+              TabExtension,
               Table.configure({ resizable: true }),
               TableRow,
               TableHeader,
