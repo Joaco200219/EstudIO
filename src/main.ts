@@ -21,6 +21,10 @@ import { marked } from "marked";
 import TurndownService from "turndown";
 // @ts-ignore
 import { gfm } from "turndown-plugin-gfm";
+import { initUpdater } from "./updater";
+
+// Inicializar el listener de actualizaciones (responde al evento emitido por Rust)
+initUpdater().catch((e) => console.error("[updater] No se pudo inicializar:", e));
 
 const turndownService = new TurndownService({ headingStyle: "atx" });
 turndownService.use(gfm);

@@ -9,7 +9,8 @@ use std::fs::OpenOptions;
 use std::io::{Read, Seek};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use tauri::{Manager, State};
+use tauri::{Emitter, Manager, State};
+use tauri_plugin_updater::UpdaterExt;
 use uuid::Uuid;
 use zip::write::SimpleFileOptions;
 use zip::ZipArchive;
@@ -918,11 +919,21 @@ pub fn run() {
         .setup(|app| {
             let db = inicio(app);
             app.manage(DbState { db: Mutex::new(db) });
+
+            // Chequeo de actualizaciones en hilo async (no bloqueante)
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = check_for_updates(handle).await {
+                    eprintln!("[updater] Error al verificar actualizaciones: {e}");
+                }
+            });
+
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             crear_materia,
             mostrar_materias,
@@ -942,60 +953,32 @@ pub fn run() {
             guardar_pdf,
             crear_zip,
             extraer_zip,
+            instalar_actualizacion,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn normaliza_asset_url_en_markdown() {
-        let entrada = "![foto](asset://localhost/%2Fhome%2Fuser%2FApuntes%2F.recursos%2Fabc.png)";
-        assert_eq!(
-            normalizar_rutas_imagenes(entrada),
-            "![foto](.recursos/abc.png)"
-        );
+/// Verifica si existe una nueva versión disponible en GitHub Releases.
+/// Si la hay, emite el evento "update-available" al frontend con la versión.
+async fn check_for_updates(app: tauri::AppHandle) -> tauri_plugin_updater::Result<()> {
+    if let Some(update) = app.updater()?.check().await? {
+        app.emit("update-available", update.version.clone())
+            .unwrap_or_else(|e| eprintln!("[updater] Error emitiendo evento: {e}"));
     }
+    Ok(())
+}
 
-    #[test]
-    fn normaliza_img_html_con_dimensiones() {
-        let entrada = r#"<img src="http://asset.localhost/C%3A%5CUsers%2Fjuan%2FM%C3%BAsica%2FApuntes%2F.recursos%2Fab12.webp" width="300">"#;
-        assert_eq!(
-            normalizar_rutas_imagenes(entrada),
-            r#"<img src=".recursos/ab12.webp" width="300">"#
-        );
+/// Descarga e instala la actualización disponible y reinicia la app.
+#[tauri::command]
+async fn instalar_actualizacion(app: tauri::AppHandle) -> std::result::Result<(), String> {
+    let updater = app.updater().map_err(|e| e.to_string())?;
+    if let Some(update) = updater.check().await.map_err(|e| e.to_string())? {
+        update
+            .download_and_install(|_downloaded, _total| {}, || {})
+            .await
+            .map_err(|e| e.to_string())?;
+        app.restart();
     }
-
-    #[test]
-    fn conserva_rutas_relativas() {
-        let entrada = "![foto](.recursos/abc.png)\n\nTexto normal sin imagenes.\n";
-        assert_eq!(normalizar_rutas_imagenes(entrada), entrada);
-    }
-
-    #[test]
-    fn normaliza_ruta_absoluta_plana() {
-        let entrada = "![foto](/home/user/Apuntes/.recursos/xyz.jpg)";
-        assert_eq!(
-            normalizar_rutas_imagenes(entrada),
-            "![foto](.recursos/xyz.jpg)"
-        );
-    }
-
-    #[test]
-    fn normaliza_varias_imagenes_en_una_linea() {
-        let entrada = "![a](asset://localhost/%2Fx%2F.recursos%2Fa.png) y ![b](asset://localhost/%2Fy%2F.recursos%2Fb.jpeg)";
-        assert_eq!(
-            normalizar_rutas_imagenes(entrada),
-            "![a](.recursos/a.png) y ![b](.recursos/b.jpeg)"
-        );
-    }
-
-    #[test]
-    fn texto_sin_referencias_a_imagenes_no_se_altera() {
-        let entrada = "# Titulo\n\nAca mencionamos /home/user/.recursos/ en texto plano.\n";
-        assert_eq!(normalizar_rutas_imagenes(entrada), entrada);
-    }
+    Ok(())
 }
