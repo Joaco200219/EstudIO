@@ -632,6 +632,62 @@ function setupEditor() {
     tableDropdownContent?.classList.toggle("show");
   });
 
+  // ── Table Grid Picker ────────────────────────────────────────────────────
+  const btnInsertTable = document.getElementById("btn-insert-table");
+  const tableGridPicker = document.getElementById("table-grid-picker");
+  const tableGridCells = document.getElementById("table-grid-cells");
+  const tableGridLabel = document.getElementById("table-grid-label");
+  const GRID_COLS = 8;
+  const GRID_ROWS = 8;
+
+  // Build the 8×8 cell grid
+  if (tableGridCells) {
+    for (let r = 1; r <= GRID_ROWS; r++) {
+      for (let c = 1; c <= GRID_COLS; c++) {
+        const cell = document.createElement("div");
+        cell.className = "table-grid-cell";
+        cell.dataset.row = String(r);
+        cell.dataset.col = String(c);
+        tableGridCells.appendChild(cell);
+      }
+    }
+  }
+
+  function updateGridHighlight(rows: number, cols: number) {
+    tableGridCells?.querySelectorAll(".table-grid-cell").forEach((el) => {
+      const cell = el as HTMLElement;
+      const r = Number(cell.dataset.row);
+      const c = Number(cell.dataset.col);
+      cell.classList.toggle("highlighted", r <= rows && c <= cols);
+    });
+    if (tableGridLabel) tableGridLabel.textContent = `${cols} × ${rows}`;
+  }
+
+  btnInsertTable?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    tableGridPicker?.classList.toggle("show");
+    if (tableGridPicker?.classList.contains("show")) {
+      updateGridHighlight(1, 1);
+    }
+  });
+
+  tableGridCells?.addEventListener("mouseover", (e) => {
+    const cell = (e.target as HTMLElement).closest(".table-grid-cell") as HTMLElement | null;
+    if (!cell) return;
+    updateGridHighlight(Number(cell.dataset.row), Number(cell.dataset.col));
+  });
+
+  tableGridCells?.addEventListener("click", (e) => {
+    const cell = (e.target as HTMLElement).closest(".table-grid-cell") as HTMLElement | null;
+    if (!cell) return;
+    const rows = Number(cell.dataset.row);
+    const cols = Number(cell.dataset.col);
+    tableGridPicker?.classList.remove("show");
+    if (editorInstancia) {
+      editorInstancia.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run();
+    }
+  });
+
   window.addEventListener("click", (e) => {
     if (!btnExportarMenu?.contains(e.target as Node)) {
       if (dropdownContent?.classList.contains("show")) {
@@ -642,6 +698,9 @@ function setupEditor() {
       if (tableDropdownContent?.classList.contains("show")) {
         tableDropdownContent.classList.remove("show");
       }
+    }
+    if (!btnInsertTable?.closest(".table-insert-wrapper")?.contains(e.target as Node)) {
+      tableGridPicker?.classList.remove("show");
     }
   });
 
@@ -1017,9 +1076,7 @@ function setupEditor() {
           case "blockquote":
             chain.toggleBlockquote().run();
             break;
-          case "insertTable":
-            chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
-            break;
+          // insertTable is handled by the grid picker (btn-insert-table)
           case "addColumnBefore":
             chain.addColumnBefore().run();
             break;

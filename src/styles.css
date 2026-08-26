@@ -1683,3 +1683,60 @@ input:checked+.slider:before {
   background-color: var(--accent);
   pointer-events: none;
 }
+
+/* ── Table Grid Picker ─────────────────────────────────────────────────────── */
+.table-grid-picker {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 1100;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px var(--shadow-color), 0 2px 6px rgba(0,0,0,0.07);
+  padding: 10px;
+  animation: picker-in 0.15s ease;
+  user-select: none;
+}
+
+.table-grid-picker.show {
+  display: block;
+}
+
+@keyframes picker-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.table-grid-label {
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-align: center;
+  margin-bottom: 8px;
+  letter-spacing: 0.04em;
+}
+
+.table-grid-cells {
+  display: grid;
+  grid-template-columns: repeat(8, 22px);
+  grid-template-rows: repeat(8, 22px);
+  gap: 3px;
+}
+
+.table-grid-cell {
+  width: 22px;
+  height: 22px;
+  border-radius: 3px;
+  border: 1.5px solid var(--panel-border);
+  background: var(--bg-color);
+  cursor: pointer;
+  transition: background-color 0.1s ease, border-color 0.1s ease;
+}
+
+.table-grid-cell.highlighted {
+  background: rgba(44, 76, 59, 0.15);
+  border-color: var(--accent);
+}
