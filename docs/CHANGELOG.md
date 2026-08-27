@@ -1,3 +1,7 @@
+# Version 1.0.3 (27/08/2026)
+- Configuración rápida y sencilla de filas y columnas para crear tablas.
+- Cambio minimal al editar notas: las opciones de "materias" y "recordatorio" desaparecen para dar más espacio al editor de texto.
+
 # Version 1.0.2 (2026-08-25)
 - Esta versión corrige algunos errores existentes en el código, como se describe más adelante. 
 - También incluye una funcionalidad de guardado rápido mediante CTRL+S (también CMD+S en macOS) disponible mientras se edita un apunte.

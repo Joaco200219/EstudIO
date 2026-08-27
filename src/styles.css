@@ -1463,6 +1463,15 @@ input:checked+.slider:before {
   border-color: rgba(44, 76, 59, 0.15);
 }
 
+/* Editor Mode Layout */
+.app-container.editor-mode .topbar {
+  display: none;
+}
+
+.app-container.editor-mode .content-area {
+  padding: 1rem 1.5rem;
+}
+
 @media (max-width: 960px) {
 
   /* Automatically hide sidebar when editing on half-screen sizes */

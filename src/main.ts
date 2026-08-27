@@ -369,6 +369,14 @@ function setupNavigation() {
 
   navBtns.forEach((btn) => {
     btn.addEventListener("click", () => {
+      // Remove editor mode if navigating away via sidebar
+      const appContainer = document.querySelector(".app-container");
+      if (appContainer) {
+        appContainer.classList.remove("editor-mode");
+        appContainer.classList.remove("sidebar-collapsed");
+        appContainer.classList.remove("sidebar-visible");
+      }
+
       // Update active button
       navBtns.forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
@@ -1263,7 +1271,21 @@ function cerrarEditor() {
   document.getElementById("view-materias")?.classList.add("active");
 
   const titleEl = document.getElementById("view-title");
-  if (titleEl) titleEl.textContent = "Materias";
+  if (titleEl) {
+    titleEl.textContent = "Materias";
+    titleEl.style.display = "none";
+  }
+
+  const topbarTabs = document.getElementById("topbar-tabs");
+  if (topbarTabs) {
+    topbarTabs.style.display = "flex";
+    document
+      .querySelectorAll(".topbar-tab")
+      .forEach((t) => t.classList.remove("active"));
+    document
+      .querySelector(".topbar-tab[data-tab-target='view-materias']")
+      ?.classList.add("active");
+  }
 
   const navBtns = document.querySelectorAll(".nav-btn");
   navBtns.forEach((b) => {
@@ -1273,6 +1295,7 @@ function cerrarEditor() {
     }
   });
 
+  cargarMaterias();
   cargarRecordatoriosHoy();
 }
 
