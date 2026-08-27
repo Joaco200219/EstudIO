@@ -39,7 +39,6 @@ EstudIO unifica las herramientas esenciales del estudiante en una aplicación de
 10. CTRL+E para formatear como código
 11. '---' para introducir una línea divisoria
 12. CTRL+SHIFT+B bloque de cita
-13. CTRL+. Para emojis
 14. CTRL+S para guardar el apunte
 ---
 
@@ -49,6 +48,3 @@ EstudIO unifica las herramientas esenciales del estudiante en una aplicación de
 - **Frontend**: HTML5, Vanilla CSS3 (diseño personalizado y variables de estilo) y TypeScript.
 - **Base de Datos**: SQLite (`mi_DB.db3`) para el modelado relacional rápido y eficiente de materias, apuntes y eventos.
 - **Editor**: TipTap (ProseMirror) extendido con soporte personalizado para inserción de imágenes, Markdown y extensiones de pegado de alta prioridad.
-
-
-
