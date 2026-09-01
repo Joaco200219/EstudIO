@@ -929,8 +929,52 @@ function setupForms() {
   });
 }
 
+function initTipTapEditor(): Editor | null {
+  if (editorInstancia) return editorInstancia;
+  try {
+    const container = document.getElementById("tiptap-editor");
+    if (container) {
+      editorInstancia = new Editor({
+        element: container,
+        extensions: [
+          CustomPasteExtension,
+          StarterKit,
+          TabExtension,
+          Table.configure({ resizable: true }),
+          TableRow,
+          TableHeader,
+          TableCell,
+          Highlight.configure({ multicolor: true }),
+          Image.configure({
+            resize: {
+              enabled: true,
+              alwaysPreserveAspectRatio: true,
+            },
+          }),
+          Markdown,
+        ],
+        content: "",
+        onTransaction: () => {
+          updateToolbarActiveStates();
+        },
+      });
+      console.log("Tiptap Editor inicializado correctamente.");
+    }
+  } catch (e) {
+    console.error("Error al inicializar Tiptap Editor:", e);
+  }
+  return editorInstancia;
+}
+
 function setupEditor() {
   console.log("Iniciando setupEditor (eventos)...");
+
+  // Pre-inicializar TipTap en segundo plano para apertura inmediata de apuntes
+  if ("requestIdleCallback" in window) {
+    (window as any).requestIdleCallback(() => initTipTapEditor());
+  } else {
+    setTimeout(() => initTipTapEditor(), 100);
+  }
 
   const btnCerrar = document.getElementById("btn-editor-cerrar");
   const btnGuardar = document.getElementById("btn-editor-guardar");
@@ -1099,8 +1143,7 @@ function setupEditor() {
       "left: 0",
       "right: 0",
       "bottom: 0",
-      "background: rgba(44, 42, 41, 0.7)",
-      "backdrop-filter: blur(3px)",
+      "background: rgba(35, 32, 28, 0.75)",
       "z-index: 1000000",
       "display: flex",
       "flex-direction: column",
@@ -2574,14 +2617,13 @@ async function cargarUltimosModificados() {
 async function abrirEditor(apunte: Apunte) {
   console.log(`Intentando abrir apunte en ruta: ${apunte.ruta}`);
   try {
-    const content = await invoke<string>("abrir_apunte", { path: apunte.ruta });
-    console.log(
-      `Contenido leído correctamente (${content.length} caracteres).`,
-    );
+    // 1. Cerrar cualquier modal abierto inmediatamente
+    const modalVer = document.getElementById("modal-ver-apuntes");
+    if (modalVer) modalVer.classList.remove("active");
+    const modalApu = document.getElementById("modal-apunte");
+    if (modalApu) modalApu.classList.remove("active");
 
-    const modal = document.getElementById("modal-ver-apuntes");
-    if (modal) modal.classList.remove("active");
-
+    // 2. Activar la vista del editor de inmediato para feedback instantáneo
     const views = document.querySelectorAll(".view");
     views.forEach((v) => v.classList.remove("active"));
     document.getElementById("view-editor-apunte")?.classList.add("active");
@@ -2591,82 +2633,60 @@ async function abrirEditor(apunte: Apunte) {
       appContainer.classList.add("editor-mode");
     }
 
-    cargarRecordatoriosHoy();
-
     const titleEl = document.getElementById("view-title");
     if (titleEl) titleEl.textContent = `Editando: ${apunte.tema}`;
 
     const editorTitle = document.getElementById("editor-title");
     if (editorTitle) editorTitle.textContent = apunte.tema;
 
-    if (!editorInstancia) {
-      try {
-        const container = document.getElementById("tiptap-editor");
-        if (container) {
-          editorInstancia = new Editor({
-            element: container,
-            extensions: [
-              CustomPasteExtension,
-              StarterKit,
-              TabExtension,
-              Table.configure({ resizable: true }),
-              TableRow,
-              TableHeader,
-              TableCell,
-              Highlight.configure({ multicolor: true }),
-              Image.configure({
-                resize: {
-                  enabled: true,
-                  alwaysPreserveAspectRatio: true,
-                },
-              }),
-              Markdown,
-            ],
-            content: "",
-            onTransaction: () => {
-              updateToolbarActiveStates();
-            },
-          });
-          console.log("Tiptap Editor inicializado correctamente.");
-        }
-      } catch (e) {
-        console.error("Error al inicializar Tiptap Editor:", e);
-      }
-    }
+    const navBtns = document.querySelectorAll(".nav-btn");
+    navBtns.forEach((b) => b.classList.remove("active"));
 
-    if (editorInstancia) {
-      console.log("Seteando valor en el editor...");
-      const htmlContent = await marked.parse(content);
-
-      const lastSlash = Math.max(
-        apunte.ruta.lastIndexOf("/"),
-        apunte.ruta.lastIndexOf("\\"),
-      );
-      const parentDir =
-        lastSlash !== -1 ? apunte.ruta.substring(0, lastSlash) : "";
-
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(htmlContent, "text/html");
-      const imgs = doc.querySelectorAll("img");
-      imgs.forEach((img) => {
-        const src = img.getAttribute("src");
-        if (src && src.startsWith(".recursos/")) {
-          const absolutePath = parentDir ? `${parentDir}/${src}` : src;
-          const assetUrl = convertFileSrc(absolutePath);
-          img.setAttribute("src", assetUrl);
-        }
-      });
-      const finalHtmlContent = doc.body.innerHTML;
-
-      editorInstancia.commands.setContent(finalHtmlContent);
-    } else {
-      console.error("editorInstancia es null, no se pudo establecer el valor.");
-    }
     currentEditPath = apunte.ruta;
     currentEditCodigo = apunte.codigo_apunte;
 
-    const navBtns = document.querySelectorAll(".nav-btn");
-    navBtns.forEach((b) => b.classList.remove("active"));
+    // Asegurar que TipTap esté disponible
+    const editor = initTipTapEditor();
+
+    // 3. Leer el contenido del archivo desde el backend
+    const content = await invoke<string>("abrir_apunte", { path: apunte.ruta });
+    console.log(
+      `Contenido leído correctamente (${content.length} caracteres).`,
+    );
+
+    // 4. Desacoplar el parseo y renderizado pesado al siguiente frame para mantener la animación fluida
+    requestAnimationFrame(async () => {
+      if (editor) {
+        console.log("Seteando valor en el editor...");
+        const htmlContent = await marked.parse(content);
+
+        const lastSlash = Math.max(
+          apunte.ruta.lastIndexOf("/"),
+          apunte.ruta.lastIndexOf("\\"),
+        );
+        const parentDir =
+          lastSlash !== -1 ? apunte.ruta.substring(0, lastSlash) : "";
+
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlContent, "text/html");
+        const imgs = doc.querySelectorAll("img");
+        imgs.forEach((img) => {
+          const src = img.getAttribute("src");
+          if (src && src.startsWith(".recursos/")) {
+            const absolutePath = parentDir ? `${parentDir}/${src}` : src;
+            const assetUrl = convertFileSrc(absolutePath);
+            img.setAttribute("src", assetUrl);
+          }
+        });
+        const finalHtmlContent = doc.body.innerHTML;
+
+        editor.commands.setContent(finalHtmlContent);
+      } else {
+        console.error("editorInstancia es null, no se pudo establecer el valor.");
+      }
+    });
+
+    cargarRecordatoriosHoy();
   } catch (error: any) {
     console.error("Error al abrir apunte:", error);
     showToast(`Error al abrir apunte: ${error}`, "error");

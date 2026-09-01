@@ -223,11 +223,11 @@ body {
 /* Views */
 .view {
   display: none;
-  animation: fadeIn 0.4s ease forwards;
 }
 
 .view.active {
   display: block;
+  animation: fadeIn 0.15s ease-out;
 }
 
 #view-editor-apunte.active {
@@ -237,12 +237,10 @@ body {
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(5px);
   }
 
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
@@ -944,7 +942,7 @@ input:checked+.slider:before {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(45, 42, 38, 0.4);
+  background: rgba(35, 32, 28, 0.45);
   z-index: 1000;
   display: flex;
   align-items: center;
@@ -952,20 +950,18 @@ input:checked+.slider:before {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transition: opacity 0.25s ease, visibility 0.25s ease;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
 }
 
 .modal-overlay.active {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
 }
 
 .modal-content {
-  transform: scale(0.95) translateY(10px);
-  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transform: scale(0.97) translateY(6px);
+  transition: transform 0.2s ease-out;
   width: 100%;
   max-width: 550px;
   margin: 1rem;
