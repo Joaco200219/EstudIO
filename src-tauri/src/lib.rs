@@ -1,7 +1,7 @@
 mod estructuras;
 use base64::Engine;
 use chrono::{Duration, NaiveDateTime};
-use estructuras::{Apunte, Evento, Materia};
+use estructuras::{Apunte, Evento, Materia, SlotsHorario};
 use image::ImageFormat;
 use rusqlite::{Connection, Result};
 use std::fs;
@@ -115,6 +115,26 @@ fn inicio(app: &tauri::App) -> Connection {
             (),
         )
         .expect("Error Creando Índice en EVENTO(fecha_recordar)");
+    conexion
+        .execute(
+            "CREATE TABLE IF NOT EXISTS SLOTSHORARIO (
+                id_slot INTEGER PRIMARY KEY AUTOINCREMENT,
+                titulo TEXT NOT NULL,
+                dia_semana INTEGER NOT NULL CHECK (dia_semana BETWEEN 0 AND 6),
+                hora_inicio INTEGER NOT NULL,
+                hora_fin INTEGER NOT NULL,
+                color TEXT NOT NULL DEFAULT '#2c4c3b',
+                aula TEXT
+            )",
+            (),
+        )
+        .expect("Error Creando La Tabla SLOTSHORARIO");
+    conexion
+        .execute(
+            "CREATE INDEX IF NOT EXISTS idx_slot_dia_hora ON SLOTSHORARIO(dia_semana, hora_inicio)",
+            (),
+        )
+        .expect("Error Creando Índice en SLOTSHORARIO");
     conexion
 }
 
@@ -913,8 +933,89 @@ fn extraer_zip(
     )
 }
 
+#[tauri::command]
+fn crear_slot_horario(
+    titulo: String,
+    dia_semana: u8,
+    hora_inicio: u16,
+    hora_fin: u16,
+    color: String,
+    aula: Option<String>,
+    state: State<'_, DbState>,
+) -> Result<String, String> {
+    if hora_fin <= hora_inicio {
+        return Err("La hora de fin debe ser posterior a la hora de inicio.".to_string());
+    }
+    let db = state.db.lock().unwrap();
+    db.execute(
+        "INSERT INTO SLOTSHORARIO (titulo, dia_semana, hora_inicio, hora_fin, color, aula) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        rusqlite::params![titulo, dia_semana, hora_inicio, hora_fin, color, aula],
+    )
+    .map_err(|e| format!("Error registrando el slot horario: {}", e))?;
+
+    Ok("== Slot horario registrado exitosamente ==".to_string())
+}
+
+#[tauri::command]
+fn borrar_slot_horario(id_slot: u32, state: State<'_, DbState>) -> Result<String, String> {
+    let db = state.db.lock().unwrap();
+    db.execute("DELETE FROM SLOTSHORARIO WHERE id_slot = ?1", (id_slot,))
+        .map_err(|e| format!("Error borrando el slot horario: {}", e))?;
+
+    Ok("== Slot horario borrado exitosamente ==".to_string())
+}
+
+#[tauri::command]
+fn mostrar_slots_horario(state: State<'_, DbState>) -> Result<Vec<SlotsHorario>, String> {
+    let db = state.db.lock().unwrap();
+    let mut stmt = db
+        .prepare(
+            "SELECT id_slot, titulo, dia_semana, hora_inicio, hora_fin, color, aula \
+             FROM SLOTSHORARIO ORDER BY dia_semana, hora_inicio",
+        )
+        .map_err(|e| format!("Error preparando consulta de slots: {}", e))?;
+
+    let iterador = stmt
+        .query_map([], |row| {
+            Ok(SlotsHorario {
+                id_slot: row.get::<_, i64>(0)? as u32,
+                titulo: row.get(1)?,
+                dia_semana: row.get::<_, i64>(2)? as u8,
+                hora_inicio: row.get::<_, i64>(3)? as u16,
+                hora_fin: row.get::<_, i64>(4)? as u16,
+                color: row.get(5)?,
+                aula: row.get(6)?,
+            })
+        })
+        .map_err(|e| format!("Error consultando slots: {}", e))?;
+
+    let mut result = Vec::new();
+    for slot in iterador {
+        match slot {
+            Ok(s) => result.push(s),
+            Err(e) => eprintln!("Error leyendo slot: {}", e),
+        }
+    }
+    Ok(result)
+}
+
+#[tauri::command]
+fn borrar_todos_slots(state: State<'_, DbState>) -> Result<String, String> {
+    let db = state.db.lock().unwrap();
+    db.execute("DELETE FROM SLOTSHORARIO", [])
+        .map_err(|e| format!("Error borrando todos los slots: {}", e))?;
+    Ok("== Horario borrado exitosamente ==".to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "linux")]
+    {
+        if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        }
+    }
+
     tauri::Builder::default()
         .setup(|app| {
             let db = inicio(app);
@@ -954,6 +1055,10 @@ pub fn run() {
             crear_zip,
             extraer_zip,
             instalar_actualizacion,
+            crear_slot_horario,
+            borrar_slot_horario,
+            mostrar_slots_horario,
+            borrar_todos_slots,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

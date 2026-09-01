@@ -103,9 +103,20 @@ interface Evento {
   descripcion: string;
 }
 
+interface SlotHorario {
+  id_slot: number;
+  titulo: string;
+  dia_semana: number;
+  hora_inicio: number; // minutos desde medianoche
+  hora_fin: number;
+  color: string;
+  aula: string | null;
+}
+
 // State
 let materiasCache: Materia[] = [];
 let eventosCache: Evento[] = [];
+let slotsCache: SlotHorario[] = [];
 let currentCalendarDate = new Date();
 let editorInstancia: Editor | null = null;
 let currentEditPath: string = "";
@@ -213,10 +224,89 @@ document.addEventListener("DOMContentLoaded", () => {
   setupModal();
   setupEditor();
   setupZipActions();
+  setupHorarios();
+  setupSettings();
+  setupBienvenida();
   cargarUltimosModificados();
   cargarMaterias();
   cargarRecordatoriosHoy();
 });
+
+// ─── Settings & Welcome ────────────────────────────────────────────────────
+
+function abrirModal(id: string) {
+  document.getElementById(id)?.classList.add("active");
+}
+
+function cerrarModal(id: string) {
+  document.getElementById(id)?.classList.remove("active");
+}
+
+function setupSettings() {
+  // Abrir settings
+  document.getElementById("btn-settings")?.addEventListener("click", () => {
+    abrirModal("modal-settings");
+  });
+
+  // Cerrar settings al hacer clic fuera del contenido
+  document.getElementById("modal-settings")?.addEventListener("click", (e) => {
+    if ((e.target as HTMLElement).id === "modal-settings") {
+      cerrarModal("modal-settings");
+    }
+  });
+
+  document
+    .getElementById("btn-cerrar-settings")
+    ?.addEventListener("click", () => {
+      cerrarModal("modal-settings");
+    });
+
+  // Desde settings → abrir atajos
+  document.getElementById("btn-ver-atajos")?.addEventListener("click", () => {
+    cerrarModal("modal-settings");
+    abrirModal("modal-atajos");
+  });
+
+  // Cerrar atajos
+  document.getElementById("modal-atajos")?.addEventListener("click", (e) => {
+    if ((e.target as HTMLElement).id === "modal-atajos") {
+      cerrarModal("modal-atajos");
+    }
+  });
+
+  document
+    .getElementById("btn-cerrar-atajos")
+    ?.addEventListener("click", () => {
+      cerrarModal("modal-atajos");
+    });
+}
+
+function setupBienvenida() {
+  const STORAGE_KEY = "estudio_bienvenida_v1";
+  const yaVisto = localStorage.getItem(STORAGE_KEY);
+
+  if (!yaVisto) {
+    // Primera vez: mostrar el modal de bienvenida
+    setTimeout(() => abrirModal("modal-bienvenida"), 300);
+  }
+
+  document
+    .getElementById("btn-cerrar-bienvenida")
+    ?.addEventListener("click", () => {
+      localStorage.setItem(STORAGE_KEY, "1");
+      cerrarModal("modal-bienvenida");
+    });
+
+  // También cerrar al hacer clic fuera
+  document
+    .getElementById("modal-bienvenida")
+    ?.addEventListener("click", (e) => {
+      if ((e.target as HTMLElement).id === "modal-bienvenida") {
+        localStorage.setItem(STORAGE_KEY, "1");
+        cerrarModal("modal-bienvenida");
+      }
+    });
+}
 
 function getTodayBackendDate(): string {
   const now = new Date();
@@ -428,9 +518,257 @@ function setupNavigation() {
         cargarMaterias();
       } else if (targetId === "view-recordatorios") {
         cargarRecordatorios();
+      } else if (targetId === "view-horarios") {
+        cargarHorarios();
       }
       cargarRecordatoriosHoy();
     });
+  });
+}
+
+// ─── Helpers de horario ────────────────────────────────────────────────────
+
+/** Convierte "HH:MM" a minutos desde medianoche */
+function timeToMinutes(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+
+/** Convierte minutos a "HH:MM" */
+function minutesToTime(mins: number): string {
+  const hh = Math.floor(mins / 60).toString().padStart(2, "0");
+  const mm = (mins % 60).toString().padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
+const DIAS_NOMBRES: Record<number, string> = {
+  0: "Domingo",
+  1: "Lunes",
+  2: "Martes",
+  3: "Miércoles",
+  4: "Jueves",
+  5: "Viernes",
+  6: "Sábado",
+};
+
+async function cargarHorarios() {
+  try {
+    slotsCache = await invoke<SlotHorario[]>("mostrar_slots_horario");
+    renderizarGrillaHorario();
+  } catch (err) {
+    showToast(`Error cargando horario: ${err}`, "error");
+  }
+  // Poblar datalist de autocompletado con materias existentes
+  const dl = document.getElementById("datalist-materias-horario");
+  if (dl) {
+    dl.innerHTML = "";
+    (materiasCache.length
+      ? Promise.resolve(materiasCache)
+      : invoke<Materia[]>("mostrar_materias")
+    )
+      .then((ms) => {
+        materiasCache = ms;
+        ms.forEach((m) => {
+          const opt = document.createElement("option");
+          opt.value = m.nombre;
+          dl.appendChild(opt);
+        });
+      })
+      .catch(() => {});
+  }
+}
+
+function renderizarGrillaHorario() {
+  const grid = document.getElementById("horario-grid");
+  const emptyMsg = document.getElementById("horario-empty-msg");
+  if (!grid) return;
+
+  grid.innerHTML = "";
+
+  if (slotsCache.length === 0) {
+    emptyMsg?.classList.add("visible");
+    return;
+  }
+  emptyMsg?.classList.remove("visible");
+
+  // Agrupar por día en orden Lunes → Domingo
+  const diasOrden = [1, 2, 3, 4, 5, 6, 0];
+  const porDia = new Map<number, SlotHorario[]>();
+  for (const slot of slotsCache) {
+    if (!porDia.has(slot.dia_semana)) porDia.set(slot.dia_semana, []);
+    porDia.get(slot.dia_semana)!.push(slot);
+  }
+
+  for (const dia of diasOrden) {
+    const slots = porDia.get(dia);
+    if (!slots || slots.length === 0) continue;
+
+    const col = document.createElement("div");
+    col.className = "horario-dia-col";
+
+    const header = document.createElement("div");
+    header.className = "horario-dia-header";
+    header.textContent = DIAS_NOMBRES[dia];
+    col.appendChild(header);
+
+    for (const slot of slots) {
+      // Detectar solapamiento con otros slots del mismo día
+      const solapa = slots.some(
+        (otro) =>
+          otro.id_slot !== slot.id_slot &&
+          slot.hora_inicio < otro.hora_fin &&
+          slot.hora_fin > otro.hora_inicio,
+      );
+
+      const card = document.createElement("div");
+      card.className = "slot-card" + (solapa ? " solapado" : "");
+      card.style.borderLeftColor = slot.color;
+
+      const aulaHtml = slot.aula
+        ? `<div class="slot-card-aula">📍 ${slot.aula}</div>`
+        : "";
+
+      card.innerHTML = `
+        <div class="slot-card-titulo">${slot.titulo}</div>
+        <div class="slot-card-hora">${minutesToTime(slot.hora_inicio)} – ${minutesToTime(slot.hora_fin)}</div>
+        ${aulaHtml}
+        <button class="slot-card-del" title="Eliminar bloque" aria-label="Eliminar">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
+          </svg>
+        </button>
+      `;
+
+      const delBtn = card.querySelector(".slot-card-del") as HTMLButtonElement;
+      delBtn.addEventListener("click", async () => {
+        try {
+          await invoke<string>("borrar_slot_horario", { idSlot: slot.id_slot });
+          slotsCache = slotsCache.filter((s) => s.id_slot !== slot.id_slot);
+          renderizarGrillaHorario();
+          showToast("Bloque eliminado", "success");
+        } catch (err) {
+          showToast(`Error al borrar bloque: ${err}`, "error");
+        }
+      });
+
+      col.appendChild(card);
+    }
+
+    grid.appendChild(col);
+  }
+}
+
+function setupHorarios() {
+  // Handler del formulario
+  const formSlot = document.getElementById("form-slot");
+  formSlot?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const titulo = (
+      document.getElementById("slot-titulo") as HTMLInputElement
+    ).value.trim();
+    const dia = parseInt(
+      (document.getElementById("slot-dia") as HTMLSelectElement).value,
+    );
+    const inicioStr = (
+      document.getElementById("slot-inicio") as HTMLInputElement
+    ).value;
+    const finStr = (
+      document.getElementById("slot-fin") as HTMLInputElement
+    ).value;
+    const color = (
+      document.getElementById("slot-color") as HTMLInputElement
+    ).value;
+    const aulaVal = (
+      document.getElementById("slot-aula") as HTMLInputElement
+    ).value.trim();
+
+    if (!inicioStr || !finStr) {
+      showToast("Completá las horas de inicio y fin", "error");
+      return;
+    }
+
+    const inicio = timeToMinutes(inicioStr);
+    const fin = timeToMinutes(finStr);
+
+    if (fin <= inicio) {
+      showToast(
+        "La hora de fin debe ser posterior a la hora de inicio",
+        "error",
+      );
+      return;
+    }
+
+    // Detección de solapamiento
+    const slotsMismoDia = slotsCache.filter((s) => s.dia_semana === dia);
+    const solapa = slotsMismoDia.some(
+      (s) => inicio < s.hora_fin && fin > s.hora_inicio,
+    );
+
+    if (solapa) {
+      const seguir = await confirm(
+        "Este bloque se superpone con otro bloque del mismo día. ¿Deseás agregarlo de todas formas?",
+      );
+      if (!seguir) return;
+    }
+
+    try {
+      await invoke<string>("crear_slot_horario", {
+        titulo,
+        diaSemana: dia,
+        horaInicio: inicio,
+        horaFin: fin,
+        color,
+        aula: aulaVal || null,
+      });
+      showToast("Bloque agregado al horario", "success");
+      (formSlot as HTMLFormElement).reset();
+      // Resetear selección de color
+      const swatches = document.querySelectorAll(".slot-color-swatch");
+      swatches.forEach((sw) => sw.classList.remove("active"));
+      swatches[0]?.classList.add("active");
+      (document.getElementById("slot-color") as HTMLInputElement).value =
+        "#2c4c3b";
+
+      await cargarHorarios();
+    } catch (err) {
+      showToast(`Error al guardar: ${err}`, "error");
+    }
+  });
+
+  // Paleta de colores
+  const swatches = document.querySelectorAll(".slot-color-swatch");
+  swatches.forEach((sw) => {
+    sw.addEventListener("click", () => {
+      swatches.forEach((s) => s.classList.remove("active"));
+      sw.classList.add("active");
+      const color = (sw as HTMLElement).dataset.color || "#2c4c3b";
+      (document.getElementById("slot-color") as HTMLInputElement).value = color;
+    });
+  });
+
+  // Botón Borrar todo
+  const btnBorrarTodos = document.getElementById(
+    "btn-borrar-todos-slots",
+  ) as HTMLButtonElement;
+  btnBorrarTodos?.addEventListener("click", async () => {
+    if (slotsCache.length === 0) {
+      showToast("El horario ya está vacío", "error");
+      return;
+    }
+    const ok = await confirm(
+      "¿Estás seguro de que deseas borrar todos los bloques del horario? Esta acción no se puede deshacer.",
+    );
+    if (!ok) return;
+    try {
+      await invoke<string>("borrar_todos_slots");
+      slotsCache = [];
+      renderizarGrillaHorario();
+      showToast("Horario borrado", "success");
+    } catch (err) {
+      showToast(`Error: ${err}`, "error");
+    }
   });
 }
 

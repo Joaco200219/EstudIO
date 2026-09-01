@@ -2,13 +2,16 @@
 - Configuración rápida y sencilla de filas y columnas para crear tablas.
 - Cambio minimal al editar notas: las opciones de "materias" y "recordatorio" desaparecen para dar más espacio al editor de texto.
 
+# FUNCIONALIDADES NUEVAS
+- Ahora se pueden crear horarios de clases para facilitarte el seguimiento y no tener que buscar una imagen perdida en tu computadora o celular para recordar. 
+
 # Version 1.0.2 (2026-08-25)
 - Esta versión corrige algunos errores existentes en el código, como se describe más adelante. 
 - También incluye una funcionalidad de guardado rápido mediante CTRL+S (también CMD+S en macOS) disponible mientras se edita un apunte.
 - Finalmente se incorpora la verificación de actualizaciones. Al iniciar la app, verifica y en caso de que exista una nueva versión, consulta si se quiere actualizar. Si se acepta, se descarga e instala la nueva version, aunque tambien se puede posponer pulsando el botón "Más tarde". **Esto esta en versión de prueba, pueden haber errores** 
 
 
-# FUNCIONALIDADES NUEVAS
+
 - **Funcionalidad:** Nuevo atajo de teclado CTRL+S (también CMD+S en macOS) disponible mientras se edita un apunte. Al pulsarlo se guarda el apunte actual mediante la función `guardarApunteActual()` (`src/main.ts`), sin cerrar el editor.
 - **Detalles:** El atajo solo está activo cuando hay un apunte abierto en el editor; fuera de él las teclas no se capturan. Se usa `preventDefault()` para evitar el diálogo nativo de guardado del navegador. La opción de guardar y cerrar (`btn-editor-guardar-cerrar`) mantiene su comportamiento original y no se ve afectada por el atajo.
 

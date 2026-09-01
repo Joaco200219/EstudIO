@@ -85,7 +85,16 @@
         <div id="topbar-tabs" class="topbar-tabs">
           <button class="topbar-tab active" data-tab-target="view-materias">Materias</button>
           <button class="topbar-tab" data-tab-target="view-recordatorios">Recordatorios</button>
+          <button class="topbar-tab" data-tab-target="view-horarios">Horarios</button>
         </div>
+        <button id="btn-settings" class="btn-settings" title="Configuración" aria-label="Configuración">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path
+              d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+        </button>
       </header>
 
       <div class="content-area">
@@ -201,7 +210,96 @@
           </div>
         </section>
 
-        <!-- View: Nuevo Apunte -->
+        <!-- View: Horarios -->
+        <section id="view-horarios" class="view fade-in">
+          <div class="horario-layout">
+            <!-- Columna Izquierda: Formulario nuevo slot -->
+            <div class="card glass-panel form-column">
+              <h3>Nuevo bloque horario</h3>
+              <form id="form-slot" class="modern-form">
+
+                <div class="form-group">
+                  <label for="slot-titulo">Materia / Bloque</label>
+                  <input type="text" id="slot-titulo" list="datalist-materias-horario" required
+                    placeholder="Ej. Álgebra Lineal, Estudio libre..." />
+                  <datalist id="datalist-materias-horario"></datalist>
+                </div>
+
+                <div class="form-group">
+                  <label for="slot-dia">Día de la semana</label>
+                  <select id="slot-dia" required>
+                    <option value="1">Lunes</option>
+                    <option value="2">Martes</option>
+                    <option value="3">Miércoles</option>
+                    <option value="4">Jueves</option>
+                    <option value="5">Viernes</option>
+                    <option value="6">Sábado</option>
+                    <option value="0">Domingo</option>
+                  </select>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="slot-inicio">Hora de inicio</label>
+                    <input type="time" id="slot-inicio" required />
+                  </div>
+                  <div class="form-group">
+                    <label for="slot-fin">Hora de fin</label>
+                    <input type="time" id="slot-fin" required />
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="slot-aula">Aula / Lugar (opcional)</label>
+                  <input type="text" id="slot-aula" placeholder="Ej. Aula 3, Virtual, Biblioteca..." />
+                </div>
+
+                <div class="form-group">
+                  <label>Color del bloque</label>
+                  <div class="slot-color-palette" id="slot-color-palette">
+                    <button type="button" class="slot-color-swatch active" data-color="#2c4c3b"
+                      style="background:#2c4c3b;" title="Verde biblioteca"></button>
+                    <button type="button" class="slot-color-swatch" data-color="#5b7fa6" style="background:#5b7fa6;"
+                      title="Azul pizarrón"></button>
+                    <button type="button" class="slot-color-swatch" data-color="#8b5e3c" style="background:#8b5e3c;"
+                      title="Marrón libro"></button>
+                    <button type="button" class="slot-color-swatch" data-color="#7a5c8a" style="background:#7a5c8a;"
+                      title="Violeta"></button>
+                    <button type="button" class="slot-color-swatch" data-color="#a85050" style="background:#a85050;"
+                      title="Rojo examen"></button>
+                    <input type="hidden" id="slot-color" value="#2c4c3b" />
+                  </div>
+                </div>
+
+                <button type="submit" class="btn-primary" id="btn-guardar-slot">
+                  Agregar bloque
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M5 12h14" />
+                    <path d="m12 5 7 7-7 7" />
+                  </svg>
+                </button>
+              </form>
+            </div>
+
+            <!-- Columna Derecha: Vista semanal -->
+            <div class="card glass-panel list-column horario-lista-col">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.2rem;">
+                <h3 style="margin-bottom:0;">Semana</h3>
+                <button id="btn-borrar-todos-slots" class="btn-secondary"
+                  style="color:var(--error); border-color:var(--error); padding:0.4rem 0.9rem; font-size:0.85rem; width:auto;">
+                  Borrar todo
+                </button>
+              </div>
+              <div id="horario-grid" class="horario-semana-grid">
+                <!-- Populated by JS -->
+              </div>
+              <p id="horario-empty-msg" class="horario-empty-msg">No hay bloques en el horario aún. ¡Agregá el primero!
+              </p>
+            </div>
+          </div>
+        </section>
+
         <section id="view-nuevo-apunte" class="view">
           <div class="card glass-panel">
             <h3>Registrar un Apunte</h3>
@@ -437,7 +535,13 @@
                 <!-- Insert Table with grid picker -->
                 <div class="table-insert-wrapper" style="position: relative; display: inline-block;">
                   <button type="button" class="toolbar-btn" id="btn-insert-table" title="Insertar Tabla">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 3v18" />
+                      <rect width="18" height="18" x="3" y="3" rx="2" />
+                      <path d="M3 9h18" />
+                      <path d="M3 15h18" />
+                    </svg>
                   </button>
                   <!-- Grid picker popover -->
                   <div id="table-grid-picker" class="table-grid-picker">
@@ -446,19 +550,31 @@
                   </div>
                 </div>
                 <div class="dropdown table-actions" style="position: relative; display: inline-block;">
-                  <button type="button" class="toolbar-btn" id="btn-table-menu" title="Opciones de Tabla" style="padding: 0 4px;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                  <button type="button" class="toolbar-btn" id="btn-table-menu" title="Opciones de Tabla"
+                    style="padding: 0 4px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
                   </button>
-                  <div id="table-dropdown-content" class="dropdown-content" style="min-width: 160px; right: 0; left: auto; transform: none; top: 100%; margin-top: 5px;">
-                    <button type="button" class="dropdown-item toolbar-btn text-btn" data-command="addColumnBefore">Columna Antes</button>
-                    <button type="button" class="dropdown-item toolbar-btn text-btn" data-command="addColumnAfter">Columna Después</button>
-                    <button type="button" class="dropdown-item toolbar-btn text-btn" data-command="deleteColumn">Eliminar Columna</button>
+                  <div id="table-dropdown-content" class="dropdown-content"
+                    style="min-width: 160px; right: 0; left: auto; transform: none; top: 100%; margin-top: 5px;">
+                    <button type="button" class="dropdown-item toolbar-btn text-btn"
+                      data-command="addColumnBefore">Columna Antes</button>
+                    <button type="button" class="dropdown-item toolbar-btn text-btn"
+                      data-command="addColumnAfter">Columna Después</button>
+                    <button type="button" class="dropdown-item toolbar-btn text-btn"
+                      data-command="deleteColumn">Eliminar Columna</button>
                     <hr style="border: 0; border-top: 1px solid var(--panel-border); margin: 4px 0;">
-                    <button type="button" class="dropdown-item toolbar-btn text-btn" data-command="addRowBefore">Fila Arriba</button>
-                    <button type="button" class="dropdown-item toolbar-btn text-btn" data-command="addRowAfter">Fila Abajo</button>
-                    <button type="button" class="dropdown-item toolbar-btn text-btn" data-command="deleteRow">Eliminar Fila</button>
+                    <button type="button" class="dropdown-item toolbar-btn text-btn" data-command="addRowBefore">Fila
+                      Arriba</button>
+                    <button type="button" class="dropdown-item toolbar-btn text-btn" data-command="addRowAfter">Fila
+                      Abajo</button>
+                    <button type="button" class="dropdown-item toolbar-btn text-btn" data-command="deleteRow">Eliminar
+                      Fila</button>
                     <hr style="border: 0; border-top: 1px solid var(--panel-border); margin: 4px 0;">
-                    <button type="button" class="dropdown-item toolbar-btn text-btn" data-command="deleteTable" style="color: var(--error);">Eliminar Tabla</button>
+                    <button type="button" class="dropdown-item toolbar-btn text-btn" data-command="deleteTable"
+                      style="color: var(--error);">Eliminar Tabla</button>
                   </div>
                 </div>
               </div>
@@ -608,6 +724,131 @@
         <button id="btn-cancel-delete-materia" class="btn-secondary" style="flex: 1;">Cancelar</button>
         <button id="btn-confirm-delete-materia" class="btn-primary"
           style="flex: 1; background-color: var(--error); border-color: var(--error);">Sí, Borrar</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Welcome Modal (primera vez) -->
+  <div id="modal-bienvenida" class="modal-overlay">
+    <div class="modal-content glass-panel" style="max-width:520px; padding: 2.5rem;">
+      <div style="text-align:center; margin-bottom:1.5rem;">
+        <h2 style="font-family:var(--font-serif); font-size:2rem; color:var(--accent); margin-bottom:0.3rem;">Bienvenido
+          a EstudIO</h2>
+        <p style="color:var(--text-secondary); font-style:italic; font-family:var(--font-serif);">Tu escritorio
+          digitalizado</p>
+      </div>
+      <p style="margin-bottom:1.2rem; font-size:0.95rem; color:var(--text-secondary);">Acá van algunos atajos rápidos
+        para tomar apuntes:</p>
+      <div class="shortcuts-grid">
+        <div class="shortcut-item"><kbd>#</kbd><span>Título H1</span></div>
+        <div class="shortcut-item"><kbd>##</kbd><span>Título H2</span></div>
+        <div class="shortcut-item"><kbd>###</kbd><span>Negrita + subrayado</span></div>
+        <div class="shortcut-item"><kbd>-+Espacio</kbd><span>Lista de ítems</span></div>
+        <div class="shortcut-item"><kbd>1.+Espacio</kbd><span>Lista numerada</span></div>
+        <div class="shortcut-item"><kbd>---</kbd><span>Línea divisoria</span></div>
+        <div class="shortcut-item"><kbd>Ctrl+B</kbd><span>Negrita</span></div>
+        <div class="shortcut-item"><kbd>Ctrl+U</kbd><span>Subrayar</span></div>
+        <div class="shortcut-item"><kbd>Ctrl+I</kbd><span>Cursiva</span></div>
+        <div class="shortcut-item"><kbd>Ctrl+E</kbd><span>Código inline</span></div>
+        <div class="shortcut-item"><kbd>Ctrl+⇧+H</kbd><span>Resaltar texto</span></div>
+        <div class="shortcut-item"><kbd>Ctrl+⇧+B</kbd><span>Bloque de cita</span></div>
+        <div class="shortcut-item"><kbd>Ctrl+S</kbd><span>Guardar apunte</span></div>
+      </div>
+      <button id="btn-cerrar-bienvenida" class="btn-primary" style="margin-top:1.8rem;">
+        Empezar a estudiar
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12h14" />
+          <path d="m12 5 7 7-7 7" />
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="modal-settings" class="modal-overlay">
+    <div class="modal-content glass-panel" style="max-width:460px; padding:2.5rem;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.8rem;">
+        <h2 style="font-family:var(--font-serif); font-size:1.5rem; color:var(--text-primary); margin:0;">Configuración
+        </h2>
+        <button id="btn-cerrar-settings" class="icon-btn" aria-label="Cerrar">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Versión -->
+      <div class="settings-row">
+        <div class="settings-label">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 16v-4" />
+            <path d="M12 8h.01" />
+          </svg>
+          Versión de la aplicación
+        </div>
+        <span class="settings-value">v1.0.3</span>
+      </div>
+
+      <div class="settings-divider"></div>
+
+      <!-- Atajos de Notas -->
+      <div class="settings-row" style="flex-direction:column; align-items:flex-start; gap:0.8rem;">
+        <div class="settings-label">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+            <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+            <path d="M10 12h4" />
+            <path d="M10 16h4" />
+            <path d="M10 8h1" />
+          </svg>
+          Comandos del editor de notas
+        </div>
+        <button id="btn-ver-atajos" class="btn-secondary" style="width:100%;">
+          Ver atajos rápidos
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m9 18 6-6-6-6" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shortcuts Modal (desde Configuracion) -->
+  <div id="modal-atajos" class="modal-overlay">
+    <div class="modal-content glass-panel" style="max-width:520px; padding:2.5rem;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+        <h2 style="font-family:var(--font-serif); font-size:1.4rem; color:var(--text-primary); margin:0;">Atajos del
+          Editor</h2>
+        <button id="btn-cerrar-atajos" class="icon-btn" aria-label="Cerrar">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
+        </button>
+      </div>
+      <div class="shortcuts-grid">
+        <div class="shortcut-item"><kbd>#</kbd><span>Título H1</span></div>
+        <div class="shortcut-item"><kbd>##</kbd><span>Título H2</span></div>
+        <div class="shortcut-item"><kbd>###</kbd><span>Negrita + subrayado</span></div>
+        <div class="shortcut-item"><kbd>-+Espacio</kbd><span>Lista de ítems</span></div>
+        <div class="shortcut-item"><kbd>1.+Espacio</kbd><span>Lista numerada</span></div>
+        <div class="shortcut-item"><kbd>---</kbd><span>Línea divisoria</span></div>
+        <div class="shortcut-item"><kbd>Ctrl+B</kbd><span>Negrita</span></div>
+        <div class="shortcut-item"><kbd>Ctrl+U</kbd><span>Subrayar</span></div>
+        <div class="shortcut-item"><kbd>Ctrl+I</kbd><span>Cursiva</span></div>
+        <div class="shortcut-item"><kbd>Ctrl+E</kbd><span>Código inline</span></div>
+        <div class="shortcut-item"><kbd>Ctrl+⇧+H</kbd><span>Resaltar texto</span></div>
+        <div class="shortcut-item"><kbd>Ctrl+⇧+B</kbd><span>Bloque de cita</span></div>
+        <div class="shortcut-item"><kbd>Ctrl+S</kbd><span>Guardar apunte</span></div>
       </div>
     </div>
   </div>
