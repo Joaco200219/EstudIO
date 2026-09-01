@@ -27,6 +27,26 @@
   /* Fix for text anti-aliasing issues during transforms/animations and ace editor */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(44, 42, 41, 0.2) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(44, 42, 41, 0.2);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(44, 42, 41, 0.35);
 }
 
 body {
@@ -67,6 +87,8 @@ body {
   box-shadow: 2px 0 10px rgba(0, 0, 0, 0.03);
   z-index: 10;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
 }
 
 .logo h2 {
@@ -149,8 +171,7 @@ body {
 .topbar {
   padding: 2rem 3rem;
   border-bottom: 1px dashed var(--panel-border);
-  background-color: rgba(244, 241, 234, 0.8);
-  backdrop-filter: blur(4px);
+  background-color: var(--bg-color);
   z-index: 4;
 }
 
@@ -194,6 +215,9 @@ body {
   padding: 2rem 3rem;
   overflow-y: auto;
   position: relative;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
 }
 
 /* Views */
@@ -258,11 +282,13 @@ body {
 
 .form-row {
   display: flex;
-  gap: 1.5rem;
+  gap: 1rem;
+  width: 100%;
 }
 
 .form-row .form-group {
   flex: 1;
+  min-width: 0;
 }
 
 .form-group {
@@ -283,8 +309,10 @@ body {
 input[type="text"],
 input[type="number"],
 input[type="date"],
+input[type="time"],
 select {
   width: 100%;
+  box-sizing: border-box;
   background: #fdfdfc;
   border: 1px solid var(--panel-border);
   border-bottom: 2px solid var(--panel-border);
@@ -917,19 +945,22 @@ input:checked+.slider:before {
   right: 0;
   bottom: 0;
   background: rgba(45, 42, 38, 0.4);
-  backdrop-filter: blur(2px);
   z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: center;
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
 }
 
 .modal-overlay.active {
   opacity: 1;
+  visibility: visible;
   pointer-events: auto;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
 }
 
 .modal-content {
@@ -1757,7 +1788,7 @@ input:checked+.slider:before {
 /* Layout principal — igual que recordatorios pero con más espacio en la grilla */
 .horario-layout {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 360px 1fr;
   gap: 2rem;
   align-items: flex-start;
   min-height: 0;
@@ -1766,6 +1797,8 @@ input:checked+.slider:before {
 .horario-lista-col {
   max-width: 100%;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
 }
 
 /* Grilla semanal: columnas dinámicas, solo días con slots */
@@ -1917,14 +1950,17 @@ input:checked+.slider:before {
 /* input[type=time] — hereda estilos base pero necesita ancho fijo */
 input[type="time"] {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   background: #fdfdfc;
   border: 1px solid var(--panel-border);
   border-bottom: 2px solid var(--panel-border);
   color: var(--text-primary);
-  padding: 0.75rem 1rem;
+  padding: 0.75rem 0.6rem;
   border-radius: 4px;
   font-family: var(--font-sans);
-  font-size: 1rem;
+  font-size: 0.95rem;
   transition: all 0.2s ease;
   outline: none;
 }
