@@ -2233,25 +2233,166 @@ input[type="time"]:focus {
   100% { transform: scale(1); opacity: 0.8; }
 }
 
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+/* File Input Group & Compact Buttons */
+.file-input-group {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  width: 100%;
+}
+
+.file-input-group input[type="text"] {
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+  width: 100% !important;
+}
+
+.btn-compact,
+#btn-drive-select-ruta {
+  width: auto !important;
+  flex: 0 0 auto !important;
+  white-space: nowrap !important;
+  padding: 0 0.85rem !important;
+}
+
+/* Modal Footer & Button Overrides */
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--panel-border);
+}
+
+.modal-footer .btn-primary,
+.modal-footer .btn-secondary {
+  margin: 0;
+  width: auto;
+  height: 38px;
+  padding: 0 1.25rem;
+  font-size: 0.88rem;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.modal-footer .btn-primary {
+  font-weight: 600;
+}
+
+.modal-footer .btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+  pointer-events: none;
+}
+
+/* Drive File Items */
 .drive-file-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.6rem 0.8rem;
-  border-radius: 6px;
+  padding: 0.65rem 0.85rem;
+  border-radius: 8px;
   cursor: pointer;
-  transition: background 0.15s ease;
-  border: 1px solid transparent;
-  margin-bottom: 0.3rem;
+  transition: all 0.18s ease;
+  border: 1px solid var(--panel-border);
+  background: #ffffff;
+  margin-bottom: 0.4rem;
+}
+
+.drive-file-item:last-child {
+  margin-bottom: 0;
 }
 
 .drive-file-item:hover {
-  background: rgba(44, 76, 59, 0.08);
+  background: rgba(44, 76, 59, 0.04);
+  border-color: rgba(44, 76, 59, 0.3);
+  transform: translateY(-1px);
 }
 
 .drive-file-item.selected {
-  background: rgba(44, 76, 59, 0.15);
+  background: rgba(44, 76, 59, 0.08);
   border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.drive-file-item-info {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  overflow: hidden;
+}
+
+.drive-file-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  background: rgba(44, 76, 59, 0.1);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.drive-file-name {
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--text-primary);
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.drive-file-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-shrink: 0;
+}
+
+.drive-file-date {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  background: rgba(0, 0, 0, 0.04);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
+
+.drive-file-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #ffffff;
+  opacity: 0;
+  transform: scale(0.6);
+  transition: all 0.2s ease;
+}
+
+.drive-file-item.selected .drive-file-check {
+  opacity: 1;
+  transform: scale(1);
 }
 
 #btn-editor-toggle-drive.drive-active {
@@ -2259,4 +2400,5 @@ input[type="time"]:focus {
   color: #61afef;
   border-color: rgba(97, 175, 239, 0.35);
 }
+
 

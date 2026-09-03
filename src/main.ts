@@ -3108,6 +3108,9 @@ function setupDriveImport() {
     const r = await seleccionarRuta(true);
     if (r && inputRuta) {
       inputRuta.value = r;
+      try {
+        localStorage.setItem("estudio_last_import_folder", r);
+      } catch (e) {}
       validarFormularioImportDrive();
     }
   });
@@ -3187,6 +3190,12 @@ async function abrirModalImportarDrive(materiaPreseleccionada: Materia | null) {
   const selectMateria = document.getElementById("drive-import-materia") as HTMLSelectElement | null;
   const btnEjecutar = document.getElementById("btn-ejecutar-import-drive") as HTMLButtonElement | null;
 
+  const inputRuta = document.getElementById("drive-import-ruta") as HTMLInputElement | null;
+  const lastFolder = localStorage.getItem("estudio_last_import_folder");
+  if (inputRuta && lastFolder && !inputRuta.value.trim()) {
+    inputRuta.value = lastFolder;
+  }
+
   if (loadingEl) loadingEl.style.display = "block";
   if (emptyEl) emptyEl.style.display = "none";
   if (listEl) listEl.innerHTML = "";
@@ -3251,14 +3260,23 @@ async function abrirModalImportarDrive(materiaPreseleccionada: Materia | null) {
           : "";
 
         item.innerHTML = `
-          <div style="display:flex; align-items:center; gap:0.5rem; overflow:hidden;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; color:var(--accent);">
-              <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/>
-              <path d="M14 2v4a2 2 0 0 0 2 2h4"/>
-            </svg>
-            <span style="font-weight:500; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${nombreLimpio}</span>
+          <div class="drive-file-item-info">
+            <div class="drive-file-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/>
+                <path d="M14 2v4a2 2 0 0 0 2 2h4"/>
+              </svg>
+            </div>
+            <span class="drive-file-name" title="${nombreLimpio}">${nombreLimpio}</span>
           </div>
-          <span style="font-size:0.75rem; color:var(--text-secondary); flex-shrink:0;">${fechaFormat}</span>
+          <div class="drive-file-meta">
+            ${fechaFormat ? `<span class="drive-file-date">${fechaFormat}</span>` : ""}
+            <span class="drive-file-check" title="Seleccionado">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </span>
+          </div>
         `;
 
         item.addEventListener("click", () => {
