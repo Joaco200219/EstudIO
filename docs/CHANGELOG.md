@@ -1,9 +1,10 @@
-# Version 1.0.3 (27/08/2026)
+# Version 1.0.3 (2026-09-03)
+- **Nueva funcionalidad: Horarios universidades.** Ahora podes crear y gestionar horarios de clases con la opción de compartirlos fácilmente. Podes especificar la materia, el día, la hora de inicio y fin, y el aula correspondiente. Los horarios se visualizan en una cuadrícula intuitiva y se pueden exportar/importar para compartirlos con compañeros. ¡Nunca más tendrás que buscar una imagen perdida en tu computadora, celular o chats!
+- **Nueva funcionalidad: Sincronización con Google Drive.** Podes activar la sincronización de tus apuntes con Google Drive para tener respaldo automático y acceder a tus notas desde cualquier computadora. Al sincronizar, se crea un archivo ZIP que puedes importar en otra instancia de EstudIO. Si pierdes todos tus datos, simplemente autentícate con tu cuenta de Gmail y recupera todo desde Google Drive.
+
+**Otros cambios** 
 - Configuración rápida y sencilla de filas y columnas para crear tablas.
 - Cambio minimal al editar notas: las opciones de "materias" y "recordatorio" desaparecen para dar más espacio al editor de texto.
-
-# FUNCIONALIDADES NUEVAS
-- Ahora se pueden crear horarios de clases para facilitarte el seguimiento y no tener que buscar una imagen perdida en tu computadora o celular para recordar. 
 
 # Version 1.0.2 (2026-08-25)
 - Esta versión corrige algunos errores existentes en el código, como se describe más adelante. 

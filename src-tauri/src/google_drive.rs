@@ -211,12 +211,12 @@ pub async fn iniciar_sesion_google(
         .port();
     let redirect_uri = format!("http://127.0.0.1:{}/callback", port);
 
-    // 2. Construir URL de autorización
+    // 2. Construir URL de autorización (usando drive.file, el estándar seguro recomendado por Google)
     let auth_url = format!(
         "https://accounts.google.com/o/oauth2/v2/auth?client_id={}&redirect_uri={}&response_type=code&scope={}&access_type=offline&prompt=consent",
         url_encode(&config.client_id),
         url_encode(&redirect_uri),
-        url_encode("https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email")
+        url_encode("https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email")
     );
 
     // 3. Abrir en el navegador predeterminado
