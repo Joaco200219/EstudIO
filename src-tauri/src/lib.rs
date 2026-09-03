@@ -8,7 +8,7 @@ use image::ImageFormat;
 use rusqlite::{Connection, Result};
 use std::fs;
 use std::fs::OpenOptions;
-use std::io::{Read, Seek};
+use std::io::{Read, Seek, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::{Emitter, Manager, State};
@@ -391,8 +391,11 @@ fn guardar_apunte(
         (&fecha_modif, &apunte_puro),
     )
     .map_err(|e| e.to_string())?;
+    // Normalizar cualquier ruta absoluta de imagenes para que sea siempre .recursos/<nombre>
+    let contenido_normalizado = normalizar_rutas_imagenes(&content);
+
     eprintln!("Guardando apunte y actualizando fecha_modif: {}", path);
-    fs::write(path, content).map_err(|e| e.to_string())
+    fs::write(path, contenido_normalizado).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -717,34 +720,30 @@ fn crear_zip(path_apunte: String) -> Result<String, String> {
     // Recibe el path del apunte (Incluye nombre apunte), arma el zip
     // Primero busca lista de imagenes a enviar
     let path_destino = Path::new(&path_apunte);
-    let mut imagenes: Vec<String> = Vec::new();
-    let archivo_string = fs::read_to_string(&path_destino).map_err(|e| e.to_string())?; // Aca carga todo en ram, problema archivos grandes
-    for linea in archivo_string.lines() {
-        if linea.contains(".recursos") {
-            // Tiene imagen
-            if let Some(fragment) = linea.split("%2F").last() {
-                let extensiones = [
-                    ".png", ".jpg", ".jpeg", ".webp", ".PNG", ".JPG", ".WEBP", ".JPEG",
-                ];
-                for ext in extensiones {
-                    if let Some(pos) = fragment.find(ext) {
-                        let imagen = fragment[..pos + ext.len()].to_string();
-                        imagenes.push(imagen);
-                    }
-                    break;
-                }
-            }
-        }
-    }
+    let archivo_string = fs::read_to_string(&path_destino).map_err(|e| e.to_string())?;
+
     let directorio = Path::new(&path_apunte)
         .parent()
         .ok_or_else(|| "No se pudo extraer el directorio para zip en backend".to_string())?;
     let mut carpeta_recursos = directorio.to_path_buf();
     carpeta_recursos.push(".recursos"); // Carpeta con imagenes
 
+    // Buscar todas las imagenes de .recursos que aparezcan referenciadas en el apunte
+    let mut imagenes: Vec<String> = Vec::new();
+    if carpeta_recursos.exists() {
+        if let Ok(entries) = fs::read_dir(&carpeta_recursos) {
+            for entry in entries.flatten() {
+                let file_name = entry.file_name().to_string_lossy().to_string();
+                if archivo_string.contains(&file_name) {
+                    imagenes.push(file_name);
+                }
+            }
+        }
+    }
+
     // Ahora si el zip
     let mut nombre_apunte = Path::new(&path_apunte)
-        .file_stem() // Sin extension del apunte sino era file_name() que devuelve el nombre con extension
+        .file_stem() // Sin extension del apunte
         .ok_or_else(|| "No se pudo extraer el nombre del apunte".to_string())?
         .to_string_lossy()
         .into_owned();
@@ -752,25 +751,22 @@ fn crear_zip(path_apunte: String) -> Result<String, String> {
     nombre_zip.push_str("_export.zip");
 
     let mut ruta_zip = directorio.to_path_buf();
-    ruta_zip.push(&nombre_zip); //El zip se guarda y crea junto a los apuntes
+    ruta_zip.push(&nombre_zip); // El zip se guarda y crea junto a los apuntes
     let file = std::fs::File::create(&ruta_zip).map_err(|e| e.to_string())?;
     let mut zip = zip::ZipWriter::new(file);
 
     let options = SimpleFileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated)
-        // files over u32::MAX require this flag set.
         .large_file(true)
         .unix_permissions(0o755);
 
-    //Mover Imagenes
+    // Mover Imagenes al ZIP
     for imagen in imagenes {
         let ruta_origen = carpeta_recursos.join(&imagen);
         if ruta_origen.exists() {
             let ruta_in_zip = format!(".recursos/{}", &imagen);
-            // Crea archivo dentro de zip
             zip.start_file(ruta_in_zip, options.clone())
                 .map_err(|e| e.to_string())?;
-            // Copia archivo
             let mut archivo_imagen = fs::File::open(&ruta_origen).map_err(|e| e.to_string())?;
             std::io::copy(&mut archivo_imagen, &mut zip).map_err(|e| e.to_string())?;
         } else {
@@ -781,12 +777,18 @@ fn crear_zip(path_apunte: String) -> Result<String, String> {
         }
     }
 
-    // Mover el apunte .md
-    nombre_apunte.push_str(".md"); // Coloco extension
+    // Normalizar el contenido .md antes de guardarlo en el ZIP para garantizar rutas relativas
+    let contenido_normalizado = normalizar_rutas_imagenes(&archivo_string);
+    if contenido_normalizado != archivo_string {
+        let _ = fs::write(&path_apunte, &contenido_normalizado);
+    }
+
+    // Mover el apunte .md al ZIP
+    nombre_apunte.push_str(".md");
     zip.start_file(nombre_apunte, options.clone())
         .map_err(|e| e.to_string())?;
-    let mut archivo_apunte = fs::File::open(&path_apunte).map_err(|e| e.to_string())?;
-    std::io::copy(&mut archivo_apunte, &mut zip).map_err(|e| e.to_string())?;
+    zip.write_all(contenido_normalizado.as_bytes())
+        .map_err(|e| e.to_string())?;
     zip.finish().map_err(|e| e.to_string())?;
 
     Ok(nombre_zip)

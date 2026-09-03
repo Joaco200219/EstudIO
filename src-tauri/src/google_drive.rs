@@ -52,6 +52,7 @@ pub struct GoogleDriveStatus {
 pub struct DriveFileItem {
     pub id: String,
     pub name: String,
+    #[serde(default)]
     pub modified_time: String,
     pub size: Option<u64>,
 }
@@ -463,8 +464,10 @@ pub async fn subir_apunte_drive(app: AppHandle, path_apunte: String) -> Result<S
 
     let zip_bytes = fs::read(&zip_path).map_err(|e| format!("Error leyendo el ZIP: {}", e))?;
 
-    // 2. Buscar si ya existe un archivo con el mismo nombre en Drive
-    let search_q = format!("name = '{}' and trashed = false", nombre_zip);
+    // 2. Buscar si ya existen archivos con el mismo nombre en Drive y eliminarlos
+    // Esto asegura que siempre haya exactamente UN SOLO zip por cada apunte sincronizado
+    let escaped_name = nombre_zip.replace('\'', "\\'");
+    let search_q = format!("name = '{}' and trashed = false", escaped_name);
     let search_url = format!(
         "https://www.googleapis.com/drive/v3/files?q={}&fields=files(id,name)",
         url_encode(&search_q)
@@ -477,64 +480,76 @@ pub async fn subir_apunte_drive(app: AppHandle, path_apunte: String) -> Result<S
         .await
         .map_err(|e| e.to_string())?;
 
-    #[derive(Deserialize)]
-    struct SearchResponse {
-        files: Option<Vec<DriveFileItem>>,
+    let search_status = search_res.status();
+    let search_body = search_res.text().await.unwrap_or_default();
+    eprintln!("[Drive Search] query: {}, status: {}", search_q, search_status);
+
+    #[derive(Deserialize, Debug)]
+    struct SearchItem {
+        id: String,
+        name: String,
     }
 
-    let mut existing_id: Option<String> = None;
-    if search_res.status().is_success() {
-        if let Ok(data) = search_res.json::<SearchResponse>().await {
-            if let Some(files) = data.files {
-                if let Some(first) = files.first() {
-                    existing_id = Some(first.id.clone());
+    #[derive(Deserialize, Debug)]
+    struct SearchResponse {
+        files: Option<Vec<SearchItem>>,
+    }
+
+    if search_status.is_success() {
+        match serde_json::from_str::<SearchResponse>(&search_body) {
+            Ok(data) => {
+                if let Some(files) = data.files {
+                    eprintln!("[Drive Delete] Encontrados {} archivo(s) previos para eliminar", files.len());
+                    for file in files {
+                        eprintln!(
+                            "[Drive Delete] Borrando versión previa de {} (id: {})",
+                            file.name, file.id
+                        );
+                        let delete_url =
+                            format!("https://www.googleapis.com/drive/v3/files/{}", file.id);
+                        let del_res = client.delete(&delete_url).bearer_auth(&token).send().await;
+                        eprintln!(
+                            "[Drive Delete] Estado borrado {}: {:?}",
+                            file.id,
+                            del_res.as_ref().map(|r| r.status())
+                        );
+                    }
                 }
             }
+            Err(e) => {
+                eprintln!("[Drive Search] Error deserializando respuesta: {} - Body: {}", e, search_body);
+            }
         }
+    } else {
+        eprintln!("[Drive Search] Falló búsqueda: {}", search_body);
     }
 
-    // 3. Subir o actualizar el archivo en Drive
-    let upload_result = if let Some(id) = existing_id {
-        // Actualizar contenido existente (PATCH)
-        let patch_url = format!(
-            "https://www.googleapis.com/upload/drive/v3/files/{}?uploadType=media",
-            id
+    // 3. Subir el nuevo archivo limpio a Drive con multipart
+    let metadata = serde_json::json!({
+        "name": nombre_zip,
+        "mimeType": "application/zip"
+    });
+
+    let form = Form::new()
+        .part(
+            "metadata",
+            Part::text(metadata.to_string())
+                .mime_str("application/json; charset=UTF-8")
+                .map_err(|e| e.to_string())?,
+        )
+        .part(
+            "file",
+            Part::bytes(zip_bytes)
+                .mime_str("application/zip")
+                .map_err(|e| e.to_string())?,
         );
-        client
-            .patch(&patch_url)
-            .bearer_auth(&token)
-            .header("Content-Type", "application/zip")
-            .body(zip_bytes)
-            .send()
-            .await
-    } else {
-        // Crear nuevo archivo con multipart
-        let metadata = serde_json::json!({
-            "name": nombre_zip,
-            "mimeType": "application/zip"
-        });
 
-        let form = Form::new()
-            .part(
-                "metadata",
-                Part::text(metadata.to_string())
-                    .mime_str("application/json; charset=UTF-8")
-                    .map_err(|e| e.to_string())?,
-            )
-            .part(
-                "file",
-                Part::bytes(zip_bytes)
-                    .mime_str("application/zip")
-                    .map_err(|e| e.to_string())?,
-            );
-
-        client
-            .post("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart")
-            .bearer_auth(&token)
-            .multipart(form)
-            .send()
-            .await
-    };
+    let upload_result = client
+        .post("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart")
+        .bearer_auth(&token)
+        .multipart(form)
+        .send()
+        .await;
 
     // 4. Limpiar el ZIP temporal local
     let _ = fs::remove_file(&zip_path);

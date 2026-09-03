@@ -326,6 +326,21 @@ function getParentDirFromPath(filePath: string): string {
   return lastSlash !== -1 ? filePath.substring(0, lastSlash) : "";
 }
 
+function recortarRutaRecursos(src: string): string {
+  if (!src) return src;
+  let decoded = src;
+  try {
+    decoded = decodeURIComponent(src);
+  } catch (_) {}
+
+  // Extrae .recursos/<nombre_archivo> independientemente de si viene como asset://, file://, o con codificación
+  const match = decoded.match(/\.recursos[\/\\]([^\s"')<>]+)/);
+  if (match) {
+    return `.recursos/${match[1]}`;
+  }
+  return src;
+}
+
 function joinPath(dir: string, fileName: string): string {
   if (!dir) return fileName;
   const sep = dir.includes("\\") && !dir.includes("/") ? "\\" : "/";
@@ -1817,10 +1832,7 @@ async function guardarApunteActual(): Promise<boolean> {
     imgs.forEach((img) => {
       const src = img.getAttribute("src");
       if (src) {
-        const idx = src.indexOf(".recursos/");
-        if (idx !== -1) {
-          img.setAttribute("src", src.substring(idx));
-        }
+        img.setAttribute("src", recortarRutaRecursos(src));
       }
     });
     const finalHtml = doc.body.innerHTML;
@@ -2799,10 +2811,13 @@ async function abrirEditor(apunte: Apunte) {
         const imgs = doc.querySelectorAll("img");
         imgs.forEach((img) => {
           const src = img.getAttribute("src");
-          if (src && src.startsWith(".recursos/")) {
-            const absolutePath = parentDir ? `${parentDir}/${src}` : src;
-            const assetUrl = convertFileSrc(absolutePath);
-            img.setAttribute("src", assetUrl);
+          if (src) {
+            const rel = recortarRutaRecursos(src);
+            if (rel.startsWith(".recursos/")) {
+              const absolutePath = parentDir ? `${parentDir}/${rel}` : rel;
+              const assetUrl = convertFileSrc(absolutePath);
+              img.setAttribute("src", assetUrl);
+            }
           }
         });
         const finalHtmlContent = doc.body.innerHTML;
@@ -2957,9 +2972,12 @@ async function sincronizarApuntesAlInicio() {
             const imgs = doc.querySelectorAll("img");
             imgs.forEach((img) => {
               const src = img.getAttribute("src");
-              if (src && src.startsWith(".recursos/")) {
-                const absolutePath = parentDir ? `${parentDir}/${src}` : src;
-                img.setAttribute("src", convertFileSrc(absolutePath));
+              if (src) {
+                const rel = recortarRutaRecursos(src);
+                if (rel.startsWith(".recursos/")) {
+                  const absolutePath = parentDir ? `${parentDir}/${rel}` : rel;
+                  img.setAttribute("src", convertFileSrc(absolutePath));
+                }
               }
             });
             editorInstancia.commands.setContent(doc.body.innerHTML);
