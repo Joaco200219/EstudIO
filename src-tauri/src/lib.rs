@@ -1,7 +1,9 @@
 mod estructuras;
+pub mod google_drive;
 use base64::Engine;
 use chrono::{Duration, NaiveDateTime};
 use estructuras::{Apunte, Evento, Materia, SlotsHorario};
+use serde::{Deserialize, Serialize};
 use image::ImageFormat;
 use rusqlite::{Connection, Result};
 use std::fs;
@@ -16,8 +18,8 @@ use zip::write::SimpleFileOptions;
 use zip::ZipArchive;
 //Fechas en formato YYYY/MM/DD aca, pero en frontend se usa DD/MM/YYYY
 
-struct DbState {
-    db: Mutex<Connection>,
+pub struct DbState {
+    pub db: Mutex<Connection>,
 }
 // Funciones para entidades
 fn sanitize_filename(name: &str) -> String {
@@ -95,6 +97,12 @@ fn inicio(app: &tauri::App) -> Connection {
             (),
         )
         .expect("Error Creando La Tabla APUNTE");
+
+    // Migración: agregar columna sincronizar_drive si aún no existe
+    let _ = conexion.execute(
+        "ALTER TABLE APUNTE ADD COLUMN sincronizar_drive BOOLEAN DEFAULT 0",
+        (),
+    );
 
     conexion //Se, creamos evento
         .execute(
@@ -230,7 +238,7 @@ fn crear_apunte(
     let ruta = ruta_completa.to_str().unwrap(); //Se guarda la ruta completa, facilita la apertura
 
     db.execute(
-        "INSERT INTO APUNTE (tema, materia_codigo, fecha_creacion, ruta, ult_modificacion) VALUES (?1, ?2, ?3, ?4, ?5)",
+        "INSERT INTO APUNTE (tema, materia_codigo, fecha_creacion, ruta, ult_modificacion, sincronizar_drive) VALUES (?1, ?2, ?3, ?4, ?5, 0)",
         (&tema, &materia_codigo, &fecha_creacion, &ruta, &ult_modificacion),
     )
     .map_err(|e| format!("Error registrando el apunte: {}", e))?;
@@ -244,6 +252,7 @@ fn crear_apunte(
         ult_modificacion,
         tema,
         ruta: ruta.to_string(),
+        sincronizar_drive: false,
     })
 }
 
@@ -251,7 +260,7 @@ fn crear_apunte(
 fn mostrar_ult_modif(state: State<'_, DbState>) -> Result<Vec<Apunte>, String> {
     let db = state.db.lock().unwrap();
     let mut apuntes_consulta = db
-        .prepare("SELECT codigo_apunte, materia_codigo, tema, ult_modificacion, ruta FROM APUNTE ORDER BY ult_modificacion DESC LIMIT 5")
+        .prepare("SELECT codigo_apunte, materia_codigo, tema, ult_modificacion, ruta, COALESCE(sincronizar_drive, 0) FROM APUNTE ORDER BY ult_modificacion DESC LIMIT 5")
         .map_err(|e| format!("No es posible crear el statement: {}", e))?;
     let iterador = apuntes_consulta
         .query_map([], |registro| {
@@ -268,6 +277,8 @@ fn mostrar_ult_modif(state: State<'_, DbState>) -> Result<Vec<Apunte>, String> {
                 _ => 0,
             };
 
+            let sinc: bool = registro.get::<usize, bool>(5).unwrap_or(false);
+
             Ok(Apunte {
                 tema: registro.get(2)?,
                 ult_modificacion: registro.get(3)?,
@@ -275,6 +286,7 @@ fn mostrar_ult_modif(state: State<'_, DbState>) -> Result<Vec<Apunte>, String> {
                 materia_codigo: codigo_mat,
                 fecha_creacion: "".to_string(),
                 ruta: registro.get(4)?,
+                sincronizar_drive: sinc,
             })
         })
         .map_err(|e| format!("Error consultando apuntes: {}", e))?;
@@ -299,7 +311,7 @@ fn buscar_apunt_materia(
         .map_err(|_| "El código de la materia no es un número válido".to_string())?;
     let db = state.db.lock().unwrap();
     let mut apuntes_consulta = db
-        .prepare("SELECT codigo_apunte, materia_codigo, tema, ult_modificacion, ruta FROM APUNTE WHERE materia_codigo = ?1")
+        .prepare("SELECT codigo_apunte, materia_codigo, tema, ult_modificacion, ruta, COALESCE(sincronizar_drive, 0) FROM APUNTE WHERE materia_codigo = ?1")
         .map_err(|e| format!("No es posible crear el statement: {}", e))?;
     let iterador = apuntes_consulta
         .query_map([&mate_codigo], |registro| {
@@ -318,6 +330,8 @@ fn buscar_apunt_materia(
                 _ => 0,
             };
 
+            let sinc: bool = registro.get::<usize, bool>(5).unwrap_or(false);
+
             Ok(Apunte {
                 tema: registro.get(2)?,
                 ult_modificacion: registro.get(3)?,
@@ -325,6 +339,7 @@ fn buscar_apunt_materia(
                 materia_codigo: codigo_mat,
                 fecha_creacion: "".to_string(),
                 ruta: registro.get(4)?,
+                sincronizar_drive: sinc,
             })
         })
         .map_err(|e| format!("Error consultando apuntes: {}", e))?;
@@ -337,6 +352,21 @@ fn buscar_apunt_materia(
         }
     }
     Ok(result)
+}
+
+#[tauri::command]
+fn cambiar_sincronizar_drive(
+    codigo_apunte: u32,
+    sincronizar: bool,
+    state: State<'_, DbState>,
+) -> Result<(), String> {
+    let db = state.db.lock().unwrap();
+    db.execute(
+        "UPDATE APUNTE SET sincronizar_drive = ?1 WHERE codigo_apunte = ?2",
+        (sincronizar, codigo_apunte),
+    )
+    .map_err(|e| format!("Error actualizando sincronizar_drive: {}", e))?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -857,7 +887,7 @@ fn normalizar_referencias(linea: &str) -> String {
 
 // Normaliza todas las rutas de imagenes de un apunte a rutas relativas a .recursos,
 // reemplazando URLs absolutas (asset://localhost/...) invalidas en otra maquina.
-fn normalizar_rutas_imagenes(contenido: &str) -> String {
+pub(crate) fn normalizar_rutas_imagenes(contenido: &str) -> String {
     let termina_nueva_linea = contenido.ends_with('\n');
     let lineas: Vec<String> = contenido
         .lines()
@@ -1007,6 +1037,125 @@ fn borrar_todos_slots(state: State<'_, DbState>) -> Result<String, String> {
     Ok("== Horario borrado exitosamente ==".to_string())
 }
 
+// ── Exportar / Importar horario (.hrf) ───────────────────────────────────────
+
+/// Estructura JSON del archivo .hrf de horario
+#[derive(Serialize, Deserialize)]
+struct HorarioExport {
+    app: String,
+    version: u32,
+    slots: Vec<SlotExport>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct SlotExport {
+    dia_semana: u8,
+    titulo: String,
+    hora_inicio: u16,
+    hora_fin: u16,
+    color: String,
+    aula: Option<String>,
+}
+
+/// Exporta todos los slots del horario al archivo indicado en formato JSON (.hrf)
+#[tauri::command]
+fn exportar_horario(ruta_destino: String, state: State<'_, DbState>) -> Result<(), String> {
+    let db = state.db.lock().unwrap();
+    let mut stmt = db
+        .prepare(
+            "SELECT titulo, dia_semana, hora_inicio, hora_fin, color, aula \
+             FROM SLOTSHORARIO ORDER BY dia_semana, hora_inicio",
+        )
+        .map_err(|e| format!("Error preparando consulta: {}", e))?;
+
+    let iterador = stmt
+        .query_map([], |row| {
+            Ok(SlotExport {
+                titulo: row.get(0)?,
+                dia_semana: row.get::<_, i64>(1)? as u8,
+                hora_inicio: row.get::<_, i64>(2)? as u16,
+                hora_fin: row.get::<_, i64>(3)? as u16,
+                color: row.get(4)?,
+                aula: row.get(5)?,
+            })
+        })
+        .map_err(|e| format!("Error consultando slots: {}", e))?;
+
+    let mut slots = Vec::new();
+    for slot in iterador {
+        match slot {
+            Ok(s) => slots.push(s),
+            Err(e) => eprintln!("Error leyendo slot: {}", e),
+        }
+    }
+
+    let export = HorarioExport {
+        app: "EstudIO".to_string(),
+        version: 1,
+        slots,
+    };
+
+    let json =
+        serde_json::to_string_pretty(&export).map_err(|e| format!("Error serializando: {}", e))?;
+    fs::write(&ruta_destino, json).map_err(|e| format!("Error escribiendo archivo: {}", e))?;
+    Ok(())
+}
+
+/// Importa un archivo .hrf y carga los slots en la DB.
+/// Si `reemplazar` es true, borra el horario actual antes de insertar.
+#[tauri::command]
+fn importar_horario(
+    ruta_archivo: String,
+    reemplazar: bool,
+    state: State<'_, DbState>,
+) -> Result<u32, String> {
+    let contenido =
+        fs::read_to_string(&ruta_archivo).map_err(|e| format!("Error leyendo archivo: {}", e))?;
+
+    let export: HorarioExport =
+        serde_json::from_str(&contenido).map_err(|_| {
+            "El archivo no es un horario de EstudIO válido (.hrf)".to_string()
+        })?;
+
+    if export.app != "EstudIO" {
+        return Err("El archivo no es un horario de EstudIO válido (.hrf)".to_string());
+    }
+
+    let db = state.db.lock().unwrap();
+
+    if reemplazar {
+        db.execute("DELETE FROM SLOTSHORARIO", [])
+            .map_err(|e| format!("Error borrando horario previo: {}", e))?;
+    }
+
+    let mut insertados: u32 = 0;
+    for slot in &export.slots {
+        if slot.hora_fin <= slot.hora_inicio {
+            eprintln!("Slot inválido (fin <= inicio), se omite: {}", slot.titulo);
+            continue;
+        }
+        if slot.dia_semana > 6 {
+            eprintln!("Dia inválido ({}), se omite: {}", slot.dia_semana, slot.titulo);
+            continue;
+        }
+        db.execute(
+            "INSERT INTO SLOTSHORARIO (titulo, dia_semana, hora_inicio, hora_fin, color, aula) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                slot.titulo,
+                slot.dia_semana,
+                slot.hora_inicio,
+                slot.hora_fin,
+                slot.color,
+                slot.aula
+            ],
+        )
+        .map_err(|e| format!("Error insertando slot '{}': {}", slot.titulo, e))?;
+        insertados += 1;
+    }
+
+    Ok(insertados)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1052,6 +1201,18 @@ pub fn run() {
             borrar_slot_horario,
             mostrar_slots_horario,
             borrar_todos_slots,
+            exportar_horario,
+            importar_horario,
+            cambiar_sincronizar_drive,
+            google_drive::iniciar_sesion_google,
+            google_drive::desconectar_google,
+            google_drive::obtener_estado_google,
+            google_drive::guardar_config_google,
+            google_drive::obtener_config_google,
+            google_drive::subir_apunte_drive,
+            google_drive::listar_apuntes_drive,
+            google_drive::descargar_apunte_drive,
+            google_drive::sincronizar_apuntes_registrados,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

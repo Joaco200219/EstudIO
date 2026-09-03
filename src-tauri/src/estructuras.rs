@@ -17,6 +17,7 @@ pub struct Apunte {
     pub ult_modificacion: String,
     pub tema: String,
     pub ruta: String,
+    pub sincronizar_drive: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

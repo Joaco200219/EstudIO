@@ -87,14 +87,21 @@
           <button class="topbar-tab" data-tab-target="view-recordatorios">Recordatorios</button>
           <button class="topbar-tab" data-tab-target="view-horarios">Horarios</button>
         </div>
-        <button id="btn-settings" class="btn-settings" title="Configuración" aria-label="Configuración">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path
-              d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-            <circle cx="12" cy="12" r="3" />
-          </svg>
-        </button>
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <button id="btn-cloud-sync-status" class="btn-cloud-sync cloud-status-unlinked" title="Google Drive no conectado" aria-label="Estado de sincronización en la nube">
+            <svg id="icon-cloud-status" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>
+            </svg>
+          </button>
+          <button id="btn-settings" class="btn-settings" title="Configuración" aria-label="Configuración">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path
+                d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </button>
+        </div>
       </header>
 
       <div class="content-area">
@@ -141,10 +148,19 @@
 
         <!-- View: Ver Materias -->
         <section id="view-materias" class="view active fade-in">
-          <button id="btn-import-zip" class="btn-secondary" style="margin-bottom:1rem;"
-            title="Importar una nota desde un archivo ZIP">
-            Importar nota ZIP
-          </button>
+          <div style="display:flex; gap:0.75rem; margin-bottom:1rem; align-items:center;">
+            <button id="btn-import-zip" class="btn-secondary" style="flex:1; width:auto; margin:0;"
+              title="Importar una nota desde un archivo ZIP">
+              Importar nota ZIP
+            </button>
+            <button id="btn-import-drive" class="btn-secondary" style="flex:1; width:auto; margin:0;"
+              title="Importar un apunte desde Google Drive">
+              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;">
+                <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>
+              </svg>
+              Importar desde Drive
+            </button>
+          </div>
           <div class="materias-grid" id="materias-list">
             <!-- Populated dynamically via TS -->
           </div>
@@ -213,83 +229,47 @@
         <!-- View: Horarios -->
         <section id="view-horarios" class="view fade-in">
           <div class="horario-layout">
-            <!-- Columna Izquierda: Formulario nuevo slot -->
-            <div class="card glass-panel form-column">
-              <h3>Nuevo bloque horario</h3>
-              <form id="form-slot" class="modern-form">
-
-                <div class="form-group">
-                  <label for="slot-titulo">Materia / Bloque</label>
-                  <input type="text" id="slot-titulo" list="datalist-materias-horario" required
-                    placeholder="Ej. Álgebra Lineal, Estudio libre..." />
-                  <datalist id="datalist-materias-horario"></datalist>
-                </div>
-
-                <div class="form-group">
-                  <label for="slot-dia">Día de la semana</label>
-                  <select id="slot-dia" required>
-                    <option value="1">Lunes</option>
-                    <option value="2">Martes</option>
-                    <option value="3">Miércoles</option>
-                    <option value="4">Jueves</option>
-                    <option value="5">Viernes</option>
-                    <option value="6">Sábado</option>
-                    <option value="0">Domingo</option>
-                  </select>
-                </div>
-
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="slot-inicio">Inicio</label>
-                    <input type="time" id="slot-inicio" required />
-                  </div>
-                  <div class="form-group">
-                    <label for="slot-fin">Fin</label>
-                    <input type="time" id="slot-fin" required />
-                  </div>
-                </div>
-
-                <div class="form-group">
-                  <label for="slot-aula">Aula / Lugar (opcional)</label>
-                  <input type="text" id="slot-aula" placeholder="Ej. Aula 3, Virtual, Biblioteca..." />
-                </div>
-
-                <div class="form-group">
-                  <label>Color del bloque</label>
-                  <div class="slot-color-palette" id="slot-color-palette">
-                    <button type="button" class="slot-color-swatch active" data-color="#2c4c3b"
-                      style="background:#2c4c3b;" title="Verde biblioteca"></button>
-                    <button type="button" class="slot-color-swatch" data-color="#5b7fa6" style="background:#5b7fa6;"
-                      title="Azul pizarrón"></button>
-                    <button type="button" class="slot-color-swatch" data-color="#8b5e3c" style="background:#8b5e3c;"
-                      title="Marrón libro"></button>
-                    <button type="button" class="slot-color-swatch" data-color="#7a5c8a" style="background:#7a5c8a;"
-                      title="Violeta"></button>
-                    <button type="button" class="slot-color-swatch" data-color="#a85050" style="background:#a85050;"
-                      title="Rojo examen"></button>
-                    <input type="hidden" id="slot-color" value="#2c4c3b" />
-                  </div>
-                </div>
-
-                <button type="submit" class="btn-primary" id="btn-guardar-slot">
-                  Agregar bloque
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M5 12h14" />
-                    <path d="m12 5 7 7-7 7" />
-                  </svg>
-                </button>
-              </form>
-            </div>
-
-            <!-- Columna Derecha: Vista semanal -->
+            <!-- Vista semanal -->
             <div class="card glass-panel list-column horario-lista-col">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.2rem;">
+              <div class="horario-header">
                 <h3 style="margin-bottom:0;">Semana</h3>
-                <button id="btn-borrar-todos-slots" class="btn-secondary"
-                  style="color:var(--error); border-color:var(--error); padding:0.4rem 0.9rem; font-size:0.85rem; width:auto;">
-                  Borrar todo
-                </button>
+                <div class="horario-acciones">
+                  <button id="btn-nuevo-slot" class="btn-horario-accion btn-horario-nuevo" title="Nuevo bloque horario">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    Nuevo bloque
+                  </button>
+                  <button id="btn-importar-horario" class="btn-horario-accion" title="Importar horario (.hrf)">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="17 8 12 3 7 8"/>
+                      <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    Importar
+                  </button>
+                  <button id="btn-exportar-horario" class="btn-horario-accion" title="Exportar horario (.hrf)">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="7 10 12 15 17 10"/>
+                      <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    Exportar
+                  </button>
+                  <button id="btn-borrar-todos-slots" class="btn-horario-accion btn-horario-del" title="Borrar todo el horario">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="3 6 5 6 21 6"/>
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                      <path d="M10 11v6"/><path d="M14 11v6"/>
+                    </svg>
+                    Borrar todo
+                  </button>
+                </div>
               </div>
               <div id="horario-grid" class="horario-semana-grid">
                 <!-- Populated by JS -->
@@ -366,6 +346,14 @@
                   sin guardar</button>
                 <button id="btn-editor-guardar" class="btn-primary"
                   style="margin-top: 0; padding: 0.4rem 0.8rem; width: auto; font-size: 0.85rem; white-space: nowrap; display: flex; align-items: center;">Guardar</button>
+                <button id="btn-editor-toggle-drive" class="btn-secondary"
+                  style="margin-top: 0; padding: 0.4rem 0.8rem; width: auto; font-size: 0.85rem; white-space: nowrap; display: flex; align-items: center; gap: 0.35rem;"
+                  title="Sincronizar este apunte con Google Drive al guardar" aria-label="Sincronizar con Google Drive">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>
+                  </svg>
+                  <span id="text-editor-drive-sync">Drive: Off</span>
+                </button>
                 <button id="btn-editor-guardar-cerrar" class="btn-primary"
                   style="margin-top: 0; padding: 0.4rem 0.8rem; width: auto; font-size: 0.85rem; white-space: nowrap; display: flex; align-items: center;">Guardar
                   y Cerrar</button>
@@ -689,6 +677,14 @@
             title="Importar una nota desde un archivo ZIP" aria-label="Importar nota ZIP">
             Importar nota ZIP
           </button>
+          <button id="btn-modal-importar-drive" class="btn-secondary"
+            style="width: auto; padding: 0.35rem 0.7rem; font-size: 0.85rem;"
+            title="Importar un apunte desde Google Drive" aria-label="Importar desde Drive">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:2px;">
+              <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>
+            </svg>
+            Importar de Drive
+          </button>
         </div>
         <button id="close-modal-ver-apuntes" class="icon-btn" aria-label="Cerrar">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
@@ -797,6 +793,40 @@
 
       <div class="settings-divider"></div>
 
+      <!-- Google Drive Integration -->
+      <div class="settings-row" style="flex-direction:column; align-items:flex-start; gap:0.8rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+          <div class="settings-label">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>
+            </svg>
+            Google Drive
+          </div>
+          <span id="settings-drive-status" class="settings-value" style="font-size:0.82rem;">No conectado</span>
+        </div>
+        <p id="settings-drive-email" style="font-size:0.8rem; color:var(--text-secondary); margin:0; display:none;"></p>
+        <div style="display:flex; gap:0.5rem; width:100%;">
+          <button id="btn-conectar-drive" class="btn-primary" style="flex:1; padding:0.4rem 0.8rem; font-size:0.85rem;">Conectar con Drive</button>
+          <button id="btn-desconectar-drive" class="btn-secondary" style="flex:1; padding:0.4rem 0.8rem; font-size:0.85rem; display:none;">Desconectar</button>
+        </div>
+        <details style="width:100%; font-size:0.82rem; color:var(--text-secondary); margin-top:0.2rem;">
+          <summary style="cursor:pointer; user-select:none;">Configuración de Google Client ID</summary>
+          <div style="display:flex; flex-direction:column; gap:0.5rem; margin-top:0.6rem;">
+            <div>
+              <label for="settings-drive-client-id" style="font-size:0.75rem; display:block; margin-bottom:2px;">Client ID:</label>
+              <input type="text" id="settings-drive-client-id" placeholder="xxxx.apps.googleusercontent.com" style="width:100%; font-size:0.78rem; padding:0.35rem; border-radius:4px; border:1px solid var(--panel-border); background:var(--bg-card); color:var(--text-primary);" />
+            </div>
+            <div>
+              <label for="settings-drive-client-secret" style="font-size:0.75rem; display:block; margin-bottom:2px;">Client Secret (opcional):</label>
+              <input type="password" id="settings-drive-client-secret" placeholder="Client secret" style="width:100%; font-size:0.78rem; padding:0.35rem; border-radius:4px; border:1px solid var(--panel-border); background:var(--bg-card); color:var(--text-primary);" />
+            </div>
+            <button id="btn-guardar-drive-config" class="btn-secondary" style="font-size:0.78rem; padding:0.3rem 0.6rem; align-self:flex-end;">Guardar credenciales</button>
+          </div>
+        </details>
+      </div>
+
+      <div class="settings-divider"></div>
+
       <!-- Atajos de Notas -->
       <div class="settings-row" style="flex-direction:column; align-items:flex-start; gap:0.8rem;">
         <div class="settings-label">
@@ -849,6 +879,145 @@
         <div class="shortcut-item"><kbd>Ctrl+⇧+H</kbd><span>Resaltar texto</span></div>
         <div class="shortcut-item"><kbd>Ctrl+⇧+B</kbd><span>Bloque de cita</span></div>
         <div class="shortcut-item"><kbd>Ctrl+S</kbd><span>Guardar apunte</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Nuevo Bloque Horario -->
+  <div id="modal-slot" class="modal-overlay">
+    <div class="modal-content glass-panel card" style="max-width: 480px; padding: 2rem;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1.5rem;">
+        <h3 style="margin:0;">Nuevo bloque horario</h3>
+        <button id="close-modal-slot" class="icon-btn" aria-label="Cerrar">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <form id="form-slot" class="modern-form">
+        <div class="form-group">
+          <label for="slot-titulo">Materia / Bloque</label>
+          <input type="text" id="slot-titulo" list="datalist-materias-horario" required
+            placeholder="Ej. Álgebra Lineal, Estudio libre..." />
+          <datalist id="datalist-materias-horario"></datalist>
+        </div>
+
+        <div class="form-group">
+          <label for="slot-dia">Día de la semana</label>
+          <select id="slot-dia" required>
+            <option value="1">Lunes</option>
+            <option value="2">Martes</option>
+            <option value="3">Miércoles</option>
+            <option value="4">Jueves</option>
+            <option value="5">Viernes</option>
+            <option value="6">Sábado</option>
+            <option value="0">Domingo</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="slot-inicio">Inicio</label>
+            <input type="time" id="slot-inicio" required />
+          </div>
+          <div class="form-group">
+            <label for="slot-fin">Fin</label>
+            <input type="time" id="slot-fin" required />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="slot-aula">Aula / Lugar (opcional)</label>
+          <input type="text" id="slot-aula" placeholder="Ej. Aula 3, Virtual, Biblioteca..." />
+        </div>
+
+        <div class="form-group">
+          <label>Color del bloque</label>
+          <div class="slot-color-palette" id="slot-color-palette">
+            <button type="button" class="slot-color-swatch active" data-color="#2c4c3b"
+              style="background:#2c4c3b;" title="Verde biblioteca"></button>
+            <button type="button" class="slot-color-swatch" data-color="#5b7fa6" style="background:#5b7fa6;"
+              title="Azul pizarrón"></button>
+            <button type="button" class="slot-color-swatch" data-color="#8b5e3c" style="background:#8b5e3c;"
+              title="Marrón libro"></button>
+            <button type="button" class="slot-color-swatch" data-color="#7a5c8a" style="background:#7a5c8a;"
+              title="Violeta"></button>
+            <button type="button" class="slot-color-swatch" data-color="#a85050" style="background:#a85050;"
+              title="Rojo examen"></button>
+            <input type="hidden" id="slot-color" value="#2c4c3b" />
+          </div>
+        </div>
+
+        <button type="submit" class="btn-primary" id="btn-guardar-slot" style="margin-top: 1rem; width: 100%;">
+          Agregar bloque
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 12h14" />
+            <path d="m12 5 7 7-7 7" />
+          </svg>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Importar desde Google Drive -->
+  <div id="modal-importar-drive" class="modal-overlay">
+    <div class="modal-content glass-panel card" style="max-width: 520px; max-height: 85vh; display: flex; flex-direction: column;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1rem; flex-shrink: 0;">
+        <h3 style="margin:0; display:flex; align-items:center; gap:0.5rem; font-size:1.15rem;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>
+          </svg>
+          Importar desde Google Drive
+        </h3>
+        <button id="close-modal-importar-drive" class="icon-btn" aria-label="Cerrar">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <p style="color:var(--text-secondary); font-size:0.85rem; margin-bottom:0.8rem;">
+        Selecciona el apunte de Google Drive que deseas descargar e importar localmente:
+      </p>
+
+      <div id="drive-files-loading" style="text-align:center; padding:1.2rem; color:var(--text-secondary); font-size:0.85rem; display:none;">
+        Cargando apuntes desde Google Drive…
+      </div>
+
+      <div id="drive-files-empty" style="text-align:center; padding:1.2rem; color:var(--text-secondary); font-size:0.85rem; display:none;">
+        No se encontraron archivos de apuntes (.zip) en Google Drive.
+      </div>
+
+      <div id="drive-files-list" style="overflow-y:auto; max-height:180px; margin-bottom:1rem; border:1px solid var(--panel-border); border-radius:8px; padding:0.4rem; background:rgba(0,0,0,0.1);">
+        <!-- Populated via TS -->
+      </div>
+
+      <!-- Destino: Materia y Carpeta -->
+      <div class="modern-form" style="display:flex; flex-direction:column; gap:0.7rem;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label for="drive-import-materia" style="font-size:0.82rem;">Materia destino</label>
+          <select id="drive-import-materia" class="form-control" style="width:100%; padding:0.4rem; border-radius:6px; background:var(--bg-card); color:var(--text-primary); border:1px solid var(--panel-border); font-size:0.85rem;">
+            <!-- Populated via TS -->
+          </select>
+        </div>
+
+        <div class="form-group" style="margin-bottom:0;">
+          <label for="drive-import-ruta" style="font-size:0.82rem;">Carpeta local donde guardar</label>
+          <div style="display:flex; gap:0.4rem;">
+            <input type="text" id="drive-import-ruta" placeholder="/ruta/donde/guardar" style="flex:1; font-size:0.82rem; padding:0.4rem;" />
+            <button type="button" id="btn-drive-select-ruta" class="btn-secondary" style="white-space:nowrap; padding:0.35rem 0.7rem; font-size:0.82rem;">Elegir carpeta</button>
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:0.6rem; margin-top:0.4rem;">
+          <button type="button" id="btn-cancelar-import-drive" class="btn-secondary" style="font-size:0.85rem;">Cancelar</button>
+          <button type="button" id="btn-ejecutar-import-drive" class="btn-primary" disabled style="font-size:0.85rem;">Descargar e Importar</button>
+        </div>
       </div>
     </div>
   </div>

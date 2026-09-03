@@ -1,5 +1,6 @@
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
-import { confirm, open } from "@tauri-apps/plugin-dialog";
+import { confirm, open, save } from "@tauri-apps/plugin-dialog";
+
 import { readImage } from "@tauri-apps/plugin-clipboard-manager";
 import { seleccionarRuta } from "./file";
 import { Editor, Extension } from "@tiptap/core";
@@ -92,6 +93,7 @@ interface Apunte {
   fecha_creacion: string;
   ult_modificacion: string;
   ruta: string;
+  sincronizar_drive?: boolean;
 }
 
 interface Evento {
@@ -227,9 +229,12 @@ document.addEventListener("DOMContentLoaded", () => {
   setupHorarios();
   setupSettings();
   setupBienvenida();
+  setupCloudSync();
+  setupDriveImport();
   cargarUltimosModificados();
   cargarMaterias();
   cargarRecordatoriosHoy();
+  sincronizarApuntesAlInicio();
 });
 
 // ─── Settings & Welcome ────────────────────────────────────────────────────
@@ -660,6 +665,28 @@ function renderizarGrillaHorario() {
 }
 
 function setupHorarios() {
+  // Modal nuevo bloque horario
+  const modalSlot = document.getElementById("modal-slot");
+  const btnNuevoSlot = document.getElementById("btn-nuevo-slot");
+  const closeBtnModalSlot = document.getElementById("close-modal-slot");
+
+  btnNuevoSlot?.addEventListener("click", () => {
+    abrirModal("modal-slot");
+    setTimeout(() => {
+      (document.getElementById("slot-titulo") as HTMLInputElement)?.focus();
+    }, 50);
+  });
+
+  closeBtnModalSlot?.addEventListener("click", () => {
+    cerrarModal("modal-slot");
+  });
+
+  modalSlot?.addEventListener("click", (e) => {
+    if (e.target === modalSlot) {
+      cerrarModal("modal-slot");
+    }
+  });
+
   // Handler del formulario
   const formSlot = document.getElementById("form-slot");
   formSlot?.addEventListener("submit", async (e) => {
@@ -732,6 +759,7 @@ function setupHorarios() {
         "#2c4c3b";
 
       await cargarHorarios();
+      cerrarModal("modal-slot");
     } catch (err) {
       showToast(`Error al guardar: ${err}`, "error");
     }
@@ -770,7 +798,66 @@ function setupHorarios() {
       showToast(`Error: ${err}`, "error");
     }
   });
+
+  // ── Exportar horario ─────────────────────────────────────────────────────
+  const btnExportarHorario = document.getElementById(
+    "btn-exportar-horario",
+  ) as HTMLButtonElement | null;
+  btnExportarHorario?.addEventListener("click", async () => {
+    if (slotsCache.length === 0) {
+      showToast("No hay bloques para exportar", "error");
+      return;
+    }
+    try {
+      const rutaDestino = await save({
+        title: "Exportar horario",
+        defaultPath: "mi_horario.hrf",
+        filters: [{ name: "Horario EstudIO", extensions: ["hrf"] }],
+      });
+      if (!rutaDestino) return; // El usuario canceló
+      await invoke("exportar_horario", { rutaDestino });
+      showToast("Horario exportado correctamente", "success");
+    } catch (err) {
+      showToast(`Error al exportar: ${err}`, "error");
+    }
+  });
+
+  // ── Importar horario ─────────────────────────────────────────────────────
+  const btnImportarHorario = document.getElementById(
+    "btn-importar-horario",
+  ) as HTMLButtonElement | null;
+  btnImportarHorario?.addEventListener("click", async () => {
+    try {
+      const rutaArchivo = await open({
+        title: "Importar horario",
+        multiple: false,
+        filters: [{ name: "Horario EstudIO", extensions: ["hrf"] }],
+      });
+      if (!rutaArchivo) return; // El usuario canceló
+
+      // Preguntar modo de importación
+      const reemplazar = await confirm(
+        "¿Deseás reemplazar el horario actual con el del archivo?\n\n" +
+        "• Aceptar → reemplaza todo el horario actual.\n" +
+        "• Cancelar → agrega los bloques al horario existente.",
+        { title: "Importar horario", kind: "warning" },
+      );
+
+      const insertados = await invoke<number>("importar_horario", {
+        rutaArchivo,
+        reemplazar,
+      });
+      await cargarHorarios();
+      showToast(
+        `${insertados} bloque${insertados !== 1 ? "s" : ""} importado${insertados !== 1 ? "s" : ""} correctamente`,
+        "success",
+      );
+    } catch (err) {
+      showToast(`Error al importar: ${err}`, "error");
+    }
+  });
 }
+
 
 function setupForms() {
   const matAnual = document.getElementById("mat-anual") as HTMLInputElement;
@@ -978,7 +1065,7 @@ function setupEditor() {
 
   const btnCerrar = document.getElementById("btn-editor-cerrar");
   const btnGuardar = document.getElementById("btn-editor-guardar");
-  const btnGuardarCerrar = document.getElementById("btn-editor-guardar-cerrar");
+  const btnGuardarCerrar = document.getElementById("btn-editor-guardar-cerrar") as HTMLButtonElement | null;
   const btnToggleSidebar = document.getElementById("btn-toggle-sidebar");
   const btnExportarZip = document.getElementById("btn-editor-exportar-zip") as HTMLButtonElement | null;
 
@@ -992,7 +1079,43 @@ function setupEditor() {
 
   btnGuardarCerrar?.addEventListener("click", async () => {
     const exito = await guardarApunteActual();
-    if (exito) cerrarEditor();
+    if (exito) {
+      if (currentEditSincronizarDrive && currentEditPath) {
+        setButtonLoading(btnGuardarCerrar, true, "Subiendo a Drive…");
+        actualizarIconoNubecita("syncing");
+        try {
+          await invoke("subir_apunte_drive", { pathApunte: currentEditPath });
+          showToast("Apunte guardado y sincronizado en Google Drive", "success");
+          actualizarIconoNubecita("synced");
+        } catch (err: any) {
+          console.error("Error al sincronizar con Drive:", err);
+          showToast(`Guardado localmente. Error al sincronizar con Drive: ${err}`, "error");
+          actualizarIconoNubecita(isGoogleDriveConnected ? "synced" : "unlinked");
+        } finally {
+          setButtonLoading(btnGuardarCerrar, false);
+        }
+      }
+      cerrarEditor();
+    }
+  });
+
+  const btnToggleDrive = document.getElementById("btn-editor-toggle-drive");
+  btnToggleDrive?.addEventListener("click", async () => {
+    if (currentEditCodigo === null) return;
+    currentEditSincronizarDrive = !currentEditSincronizarDrive;
+    actualizarToggleDriveUI(currentEditSincronizarDrive);
+    try {
+      await invoke("cambiar_sincronizar_drive", {
+        codigoApunte: currentEditCodigo,
+        sincronizar: currentEditSincronizarDrive,
+      });
+      showToast(
+        `Sincronización con Drive ${currentEditSincronizarDrive ? "activada" : "desactivada"}`,
+        "success",
+      );
+    } catch (e: any) {
+      console.error("Error al cambiar sincronizar_drive:", e);
+    }
   });
 
   // ── Atajo de teclado: Ctrl+S / Cmd+S para guardar ──────────────────────────
@@ -1636,6 +1759,8 @@ function updateToolbarActiveStates() {
 function cerrarEditor() {
   currentEditPath = "";
   currentEditCodigo = null;
+  currentEditSincronizarDrive = false;
+  actualizarToggleDriveUI(false);
   if (editorInstancia) {
     editorInstancia.commands.setContent("");
   }
@@ -2644,6 +2769,8 @@ async function abrirEditor(apunte: Apunte) {
 
     currentEditPath = apunte.ruta;
     currentEditCodigo = apunte.codigo_apunte;
+    currentEditSincronizarDrive = !!apunte.sincronizar_drive;
+    actualizarToggleDriveUI(currentEditSincronizarDrive);
 
     // Asegurar que TipTap esté disponible
     const editor = initTipTapEditor();
@@ -2690,5 +2817,451 @@ async function abrirEditor(apunte: Apunte) {
   } catch (error: any) {
     console.error("Error al abrir apunte:", error);
     showToast(`Error al abrir apunte: ${error}`, "error");
+  }
+}
+
+// ─── Google Drive Cloud Sync & Import ──────────────────────────────────────────
+let currentEditSincronizarDrive: boolean = false;
+let isGoogleDriveConnected: boolean = false;
+let selectedDriveFileId: string | null = null;
+let selectedDriveFileName: string | null = null;
+
+type CloudStatus = "offline" | "syncing" | "synced" | "unlinked";
+
+function actualizarToggleDriveUI(activo: boolean) {
+  const btn = document.getElementById("btn-editor-toggle-drive");
+  const text = document.getElementById("text-editor-drive-sync");
+  if (btn) {
+    if (activo) {
+      btn.classList.add("drive-active");
+      if (text) text.textContent = "Drive: Activo";
+      btn.title = "Sincronización con Drive activada para este apunte (clic para desactivar)";
+    } else {
+      btn.classList.remove("drive-active");
+      if (text) text.textContent = "Drive: Off";
+      btn.title = "Sincronización con Drive desactivada (clic para activar)";
+    }
+  }
+}
+
+function actualizarIconoNubecita(estado: CloudStatus) {
+  const btn = document.getElementById("btn-cloud-sync-status");
+  const icon = document.getElementById("icon-cloud-status");
+  if (!btn || !icon) return;
+
+  btn.classList.remove(
+    "cloud-status-offline",
+    "cloud-status-syncing",
+    "cloud-status-synced",
+    "cloud-status-unlinked",
+  );
+
+  switch (estado) {
+    case "offline":
+      btn.classList.add("cloud-status-offline");
+      btn.title = "Sin conexión a Internet";
+      // Nube cortada (CloudOff)
+      icon.innerHTML = `<path d="m2 2 20 20"/><path d="M5.782 5.782A7 7 0 0 0 9 19h8.5a4.5 4.5 0 0 0 1.307-.193"/><path d="M21.532 16.5A4.5 4.5 0 0 0 17.5 10h-1.79A7.008 7.008 0 0 0 10 5.07"/>`;
+      break;
+    case "syncing":
+      btn.classList.add("cloud-status-syncing");
+      btn.title = "Sincronizando con Google Drive…";
+      // Nube con flechas / pulso
+      icon.innerHTML = `<path d="M12 13v8l-4-4"/><path d="m12 21 4-4"/><path d="M4.393 15.269A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 3.5 7.369"/>`;
+      break;
+    case "synced":
+      btn.classList.add("cloud-status-synced");
+      btn.title = "Google Drive sincronizado";
+      // Nube con tilde (CloudCheck)
+      icon.innerHTML = `<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/><path d="m9 14 2 2 4-4"/>`;
+      break;
+    case "unlinked":
+    default:
+      btn.classList.add("cloud-status-unlinked");
+      btn.title = "Google Drive no conectado (clic para vincular)";
+      // Nube normal
+      icon.innerHTML = `<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>`;
+      break;
+  }
+}
+
+async function verificarEstadoGoogleDrive() {
+  if (!navigator.onLine) {
+    actualizarIconoNubecita("offline");
+    return;
+  }
+  try {
+    const estado = await invoke<{ conectado: boolean; email?: string | null }>(
+      "obtener_estado_google",
+    );
+    isGoogleDriveConnected = estado.conectado;
+    const statusText = document.getElementById("settings-drive-status");
+    const emailText = document.getElementById("settings-drive-email");
+    const btnConectar = document.getElementById("btn-conectar-drive");
+    const btnDesconectar = document.getElementById("btn-desconectar-drive");
+
+    if (estado.conectado) {
+      actualizarIconoNubecita("synced");
+      if (statusText) statusText.textContent = "Conectado";
+      if (emailText) {
+        emailText.textContent = estado.email ? `Cuenta: ${estado.email}` : "";
+        emailText.style.display = estado.email ? "block" : "none";
+      }
+      if (btnConectar) btnConectar.style.display = "none";
+      if (btnDesconectar) btnDesconectar.style.display = "block";
+    } else {
+      actualizarIconoNubecita("unlinked");
+      if (statusText) statusText.textContent = "No conectado";
+      if (emailText) emailText.style.display = "none";
+      if (btnConectar) btnConectar.style.display = "block";
+      if (btnDesconectar) btnDesconectar.style.display = "none";
+    }
+  } catch (err) {
+    console.error("Error al obtener estado de Google Drive:", err);
+    actualizarIconoNubecita("unlinked");
+  }
+}
+
+async function sincronizarApuntesAlInicio() {
+  if (!navigator.onLine) {
+    actualizarIconoNubecita("offline");
+    return;
+  }
+  await verificarEstadoGoogleDrive();
+  if (!isGoogleDriveConnected) {
+    return;
+  }
+
+  actualizarIconoNubecita("syncing");
+  try {
+    const actualizados = await invoke<string[]>("sincronizar_apuntes_registrados");
+    actualizarIconoNubecita("synced");
+    if (actualizados && actualizados.length > 0) {
+      showToast(
+        `Se sincronizaron ${actualizados.length} apunte(s) desde Drive: ${actualizados.join(", ")}`,
+        "success",
+      );
+      cargarUltimosModificados();
+      cargarMaterias();
+
+      // Si el apunte que el usuario tiene abierto se acaba de actualizar, recargar su contenido en TipTap
+      if (currentEditPath && editorInstancia) {
+        const apunteAbierto = actualizados.some((t) => currentEditPath.includes(t));
+        if (apunteAbierto) {
+          try {
+            const content = await invoke<string>("abrir_apunte", { path: currentEditPath });
+            const htmlContent = await marked.parse(content);
+            const parentDir = getParentDirFromPath(currentEditPath);
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(htmlContent, "text/html");
+            const imgs = doc.querySelectorAll("img");
+            imgs.forEach((img) => {
+              const src = img.getAttribute("src");
+              if (src && src.startsWith(".recursos/")) {
+                const absolutePath = parentDir ? `${parentDir}/${src}` : src;
+                img.setAttribute("src", convertFileSrc(absolutePath));
+              }
+            });
+            editorInstancia.commands.setContent(doc.body.innerHTML);
+            showToast("El apunte en edición se actualizó con los cambios de Google Drive", "success");
+          } catch (e) {
+            console.error("Error al recargar apunte abierto tras sincronización:", e);
+          }
+        }
+      }
+    }
+  } catch (err: any) {
+    console.error("Error durante sincronización al inicio:", err);
+    actualizarIconoNubecita(isGoogleDriveConnected ? "synced" : "unlinked");
+  }
+}
+
+function setupCloudSync() {
+  window.addEventListener("online", () => {
+    verificarEstadoGoogleDrive().then(() => {
+      sincronizarApuntesAlInicio();
+    });
+  });
+
+  window.addEventListener("offline", () => {
+    actualizarIconoNubecita("offline");
+  });
+
+  const btnCloudStatus = document.getElementById("btn-cloud-sync-status");
+  btnCloudStatus?.addEventListener("click", () => {
+    if (!navigator.onLine) {
+      showToast("Sin conexión a Internet", "error");
+      return;
+    }
+    if (!isGoogleDriveConnected) {
+      abrirModal("modal-settings");
+    } else {
+      showToast("Verificando sincronización con Google Drive…", "success");
+      sincronizarApuntesAlInicio();
+    }
+  });
+
+  // Settings: Google Drive actions
+  const btnConectar = document.getElementById("btn-conectar-drive");
+  const btnDesconectar = document.getElementById("btn-desconectar-drive");
+  const btnGuardarConfig = document.getElementById("btn-guardar-drive-config");
+
+  btnConectar?.addEventListener("click", async () => {
+    const inputClientId = (document.getElementById("settings-drive-client-id") as HTMLInputElement)?.value;
+    const inputClientSecret = (document.getElementById("settings-drive-client-secret") as HTMLInputElement)?.value;
+
+    try {
+      showToast("Abriendo navegador para iniciar sesión con Google…", "success");
+      const resp = await invoke<{ conectado: boolean; email?: string | null }>(
+        "iniciar_sesion_google",
+        {
+          clientId: inputClientId || null,
+          clientSecret: inputClientSecret || null,
+        },
+      );
+      if (resp.conectado) {
+        showToast(`¡Conectado exitosamente con ${resp.email || "Google Drive"}!`, "success");
+        await verificarEstadoGoogleDrive();
+        await sincronizarApuntesAlInicio();
+      }
+    } catch (err: any) {
+      console.error("Error al conectar con Google Drive:", err);
+      showToast(`Error al conectar con Google Drive: ${err}`, "error");
+    }
+  });
+
+  btnDesconectar?.addEventListener("click", async () => {
+    try {
+      await invoke("desconectar_google");
+      showToast("Google Drive desconectado", "success");
+      await verificarEstadoGoogleDrive();
+    } catch (err: any) {
+      showToast(`Error al desconectar: ${err}`, "error");
+    }
+  });
+
+  btnGuardarConfig?.addEventListener("click", async () => {
+    const clientId = (document.getElementById("settings-drive-client-id") as HTMLInputElement)?.value;
+    const clientSecret = (document.getElementById("settings-drive-client-secret") as HTMLInputElement)?.value;
+    try {
+      await invoke("guardar_config_google", { clientId: clientId || "", clientSecret: clientSecret || "" });
+      showToast("Configuración de credenciales guardada", "success");
+    } catch (e: any) {
+      showToast(`Error guardando configuración: ${e}`, "error");
+    }
+  });
+
+  // Load existing config into inputs
+  invoke<{ client_id: string; client_secret: string }>("obtener_config_google")
+    .then((cfg) => {
+      if (cfg) {
+        const inpId = document.getElementById("settings-drive-client-id") as HTMLInputElement;
+        const inpSec = document.getElementById("settings-drive-client-secret") as HTMLInputElement;
+        if (inpId && cfg.client_id) inpId.value = cfg.client_id;
+        if (inpSec && cfg.client_secret) inpSec.value = cfg.client_secret;
+      }
+    })
+    .catch(() => {});
+}
+
+function setupDriveImport() {
+  const modalDrive = document.getElementById("modal-importar-drive");
+  const btnClose = document.getElementById("close-modal-importar-drive");
+  const btnCancel = document.getElementById("btn-cancelar-import-drive");
+  const btnSelectRuta = document.getElementById("btn-drive-select-ruta");
+  const btnEjecutar = document.getElementById("btn-ejecutar-import-drive") as HTMLButtonElement | null;
+  const inputRuta = document.getElementById("drive-import-ruta") as HTMLInputElement | null;
+  const selectMateria = document.getElementById("drive-import-materia") as HTMLSelectElement | null;
+
+  const cerrarModalDrive = () => {
+    modalDrive?.classList.remove("active");
+    selectedDriveFileId = null;
+    selectedDriveFileName = null;
+    if (btnEjecutar) btnEjecutar.disabled = true;
+  };
+
+  btnClose?.addEventListener("click", cerrarModalDrive);
+  btnCancel?.addEventListener("click", cerrarModalDrive);
+  modalDrive?.addEventListener("click", (e) => {
+    if (e.target === modalDrive) cerrarModalDrive();
+  });
+
+  btnSelectRuta?.addEventListener("click", async () => {
+    const r = await seleccionarRuta(true);
+    if (r && inputRuta) {
+      inputRuta.value = r;
+      validarFormularioImportDrive();
+    }
+  });
+
+  function validarFormularioImportDrive() {
+    if (btnEjecutar) {
+      const tieneArchivo = !!selectedDriveFileId;
+      const tieneRuta = !!inputRuta?.value.trim();
+      const tieneMateria = !!selectMateria?.value;
+      btnEjecutar.disabled = !(tieneArchivo && tieneRuta && tieneMateria);
+    }
+  }
+
+  inputRuta?.addEventListener("input", validarFormularioImportDrive);
+  selectMateria?.addEventListener("change", validarFormularioImportDrive);
+
+  // Global button in view-materias
+  const btnImportGlobal = document.getElementById("btn-import-drive");
+  btnImportGlobal?.addEventListener("click", () => {
+    abrirModalImportarDrive(null);
+  });
+
+  // Modal button in modal-ver-apuntes
+  const btnImportModal = document.getElementById("btn-modal-importar-drive");
+  btnImportModal?.addEventListener("click", () => {
+    abrirModalImportarDrive(currentMateriaForModal);
+  });
+
+  btnEjecutar?.addEventListener("click", async () => {
+    if (!selectedDriveFileId || !inputRuta?.value || !selectMateria?.value) {
+      showToast("Completa todos los campos para importar", "error");
+      return;
+    }
+
+    setButtonLoading(btnEjecutar, true, "Descargando…");
+    actualizarIconoNubecita("syncing");
+    try {
+      const apunte = await invoke<Apunte>("descargar_apunte_drive", {
+        fileId: selectedDriveFileId,
+        materiaCodigo: selectMateria.value,
+        rutaDestino: inputRuta.value.trim(),
+      });
+
+      const nombreFinal = selectedDriveFileName?.replace(/_export\.zip$/i, "").replace(/\.zip$/i, "") || apunte.tema;
+      showToast(`Apunte "${nombreFinal}" importado y sincronizado correctamente`, "success");
+      actualizarIconoNubecita("synced");
+      cerrarModalDrive();
+      cargarUltimosModificados();
+      if (currentMateriaForModal) {
+        await abrirModalVerApuntes(currentMateriaForModal);
+      }
+    } catch (err: any) {
+      console.error("Error descargando apunte de Drive:", err);
+      showToast(`Error al importar de Drive: ${err}`, "error");
+      actualizarIconoNubecita(isGoogleDriveConnected ? "synced" : "unlinked");
+    } finally {
+      setButtonLoading(btnEjecutar, false);
+    }
+  });
+}
+
+async function abrirModalImportarDrive(materiaPreseleccionada: Materia | null) {
+  if (!navigator.onLine) {
+    showToast("Se requiere conexión a Internet para importar desde Google Drive", "error");
+    return;
+  }
+  if (!isGoogleDriveConnected) {
+    showToast("Debes vincular tu cuenta de Google Drive primero en Configuración", "error");
+    abrirModal("modal-settings");
+    return;
+  }
+
+  abrirModal("modal-importar-drive");
+  const loadingEl = document.getElementById("drive-files-loading");
+  const emptyEl = document.getElementById("drive-files-empty");
+  const listEl = document.getElementById("drive-files-list");
+  const selectMateria = document.getElementById("drive-import-materia") as HTMLSelectElement | null;
+  const btnEjecutar = document.getElementById("btn-ejecutar-import-drive") as HTMLButtonElement | null;
+
+  if (loadingEl) loadingEl.style.display = "block";
+  if (emptyEl) emptyEl.style.display = "none";
+  if (listEl) listEl.innerHTML = "";
+  if (btnEjecutar) btnEjecutar.disabled = true;
+  selectedDriveFileId = null;
+  selectedDriveFileName = null;
+
+  // Población del selector de materias
+  if (selectMateria) {
+    selectMateria.innerHTML = "";
+    if (!materiasCache || materiasCache.length === 0) {
+      try {
+        materiasCache = await invoke<Materia[]>("mostrar_materias");
+      } catch (e) {}
+    }
+    if (materiasCache && materiasCache.length > 0) {
+      materiasCache.forEach((m) => {
+        const opt = document.createElement("option");
+        opt.value = m.codigo.toString();
+        opt.textContent = `${m.nombre} (Año ${m.ano})`;
+        if (materiaPreseleccionada && m.codigo === materiaPreseleccionada.codigo) {
+          opt.selected = true;
+        }
+        selectMateria.appendChild(opt);
+      });
+    } else {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "No hay materias creadas";
+      selectMateria.appendChild(opt);
+    }
+  }
+
+  // Carga de archivos desde Drive
+  try {
+    const files = await invoke<Array<{ id: string; name: string; modified_time: string; size?: number }>>(
+      "listar_apuntes_drive",
+    );
+    if (loadingEl) loadingEl.style.display = "none";
+
+    if (!files || files.length === 0) {
+      if (emptyEl) emptyEl.style.display = "block";
+      return;
+    }
+
+    if (listEl) {
+      files.forEach((f) => {
+        const item = document.createElement("div");
+        item.className = "drive-file-item";
+        item.dataset.id = f.id;
+
+        // Limpiar sufijo _export.zip para presentación
+        const nombreLimpio = f.name.replace(/_export\.zip$/i, "").replace(/\.zip$/i, "");
+        const fechaFormat = f.modified_time
+          ? new Date(f.modified_time).toLocaleDateString("es-ES", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : "";
+
+        item.innerHTML = `
+          <div style="display:flex; align-items:center; gap:0.5rem; overflow:hidden;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; color:var(--accent);">
+              <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/>
+              <path d="M14 2v4a2 2 0 0 0 2 2h4"/>
+            </svg>
+            <span style="font-weight:500; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${nombreLimpio}</span>
+          </div>
+          <span style="font-size:0.75rem; color:var(--text-secondary); flex-shrink:0;">${fechaFormat}</span>
+        `;
+
+        item.addEventListener("click", () => {
+          document.querySelectorAll(".drive-file-item").forEach((el) => el.classList.remove("selected"));
+          item.classList.add("selected");
+          selectedDriveFileId = f.id;
+          selectedDriveFileName = f.name;
+
+          const inputRuta = document.getElementById("drive-import-ruta") as HTMLInputElement | null;
+          const tieneRuta = !!inputRuta?.value.trim();
+          const tieneMateria = !!selectMateria?.value;
+          if (btnEjecutar) {
+            btnEjecutar.disabled = !(tieneRuta && tieneMateria);
+          }
+        });
+
+        listEl.appendChild(item);
+      });
+    }
+  } catch (err: any) {
+    if (loadingEl) loadingEl.style.display = "none";
+    showToast(`Error al consultar Google Drive: ${err}`, "error");
   }
 }
