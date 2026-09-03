@@ -429,6 +429,38 @@ input:checked+.slider:before {
   box-shadow: none;
 }
 
+/* Danger Button */
+.btn-danger {
+  background: var(--error);
+  color: white;
+  border: 1px solid var(--error);
+  padding: 0.8rem 1.5rem;
+  border-radius: 6px;
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(168, 66, 63, 0.15);
+}
+
+.btn-danger:hover {
+  background: #913735;
+  border-color: #913735;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(168, 66, 63, 0.25);
+}
+
+.btn-danger:active {
+  transform: translateY(1px);
+  box-shadow: none;
+}
+
 /* PDF Export Button */
 .btn-pdf {
   background: #7c3d2d;
@@ -2276,7 +2308,8 @@ input[type="time"]:focus {
 }
 
 .modal-footer .btn-primary,
-.modal-footer .btn-secondary {
+.modal-footer .btn-secondary,
+.modal-footer .btn-danger {
   margin: 0;
   width: auto;
   height: 38px;
@@ -2289,9 +2322,11 @@ input[type="time"]:focus {
   gap: 0.45rem;
   border-radius: 6px;
   transition: all 0.2s ease;
+  box-sizing: border-box;
 }
 
-.modal-footer .btn-primary {
+.modal-footer .btn-primary,
+.modal-footer .btn-danger {
   font-weight: 600;
 }
 
