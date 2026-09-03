@@ -215,7 +215,7 @@ pub async fn iniciar_sesion_google(
         "https://accounts.google.com/o/oauth2/v2/auth?client_id={}&redirect_uri={}&response_type=code&scope={}&access_type=offline&prompt=consent",
         url_encode(&config.client_id),
         url_encode(&redirect_uri),
-        url_encode("https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email")
+        url_encode("https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email")
     );
 
     // 3. Abrir en el navegador predeterminado
